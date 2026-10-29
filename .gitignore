@@ -6,3 +6,5 @@ promo/*.mp4
 promo/_*
 *.log
 .claude/
+_tmp/
+Reparar Kalmiya.bat

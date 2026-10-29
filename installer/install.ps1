@@ -14,6 +14,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+$Version = "0.1.0"
 $Root   = Join-Path $env:LOCALAPPDATA "Kalmiya"
 $Old    = Join-Path $env:LOCALAPPDATA "Eco"     # nombre anterior de la app
 $AppDir = Join-Path $Root "app"
@@ -189,11 +190,25 @@ Shortcut (Join-Path ([Environment]::GetFolderPath("Desktop")) "Kalmiya.lnk")
 $startup = Join-Path ([Environment]::GetFolderPath("Startup")) "Kalmiya.lnk"
 if ($NoStartup) { Remove-Item -Force -ErrorAction SilentlyContinue $startup } else { Shortcut $startup }
 
+$uninstallCmd = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$AppDir\uninstall.ps1`""
 $u = $shell.CreateShortcut((Join-Path $programs "Desinstalar Kalmiya.lnk"))
 $u.TargetPath = "powershell.exe"
-$u.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$AppDir\uninstall.ps1`""
+$u.Arguments = $uninstallCmd
 $u.IconLocation = $ico
 $u.Save()
+
+# Registro en Configuracion > Aplicaciones > Aplicaciones instaladas (y Panel de control > Programas).
+$key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Kalmiya"
+New-Item -Force $key | Out-Null
+$sizeKb = [int]((Get-ChildItem $Root -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum / 1KB)
+$strings = @{
+    DisplayName = "Kalmiya"; DisplayVersion = $Version; Publisher = "Kalmiya"; DisplayIcon = $ico
+    InstallLocation = $Root; URLInfoAbout = "https://github.com/jcrow0526/kalmiya"
+    UninstallString = "powershell.exe $uninstallCmd"; QuietUninstallString = "powershell.exe $uninstallCmd -Quiet"
+}
+foreach ($k in $strings.Keys) { New-ItemProperty -Force -Path $key -Name $k -Value $strings[$k] -PropertyType String | Out-Null }
+foreach ($k in @("NoModify", "NoRepair")) { New-ItemProperty -Force -Path $key -Name $k -Value 1 -PropertyType DWord | Out-Null }
+New-ItemProperty -Force -Path $key -Name EstimatedSize -Value $sizeKb -PropertyType DWord | Out-Null
 
 Write-Host ""
 Write-Host "@@DONE"
