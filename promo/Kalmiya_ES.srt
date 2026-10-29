@@ -1,0 +1,35 @@
+1
+00:00:01,100 --> 00:00:02,395
+Hola, soy Kalmiya.
+
+2
+00:00:03,445 --> 00:00:07,491
+Corro de manera local, en tu computadora. Tu voz nunca sale de tu PC.
+
+3
+00:00:08,541 --> 00:00:10,394
+Y estoy aquí para ayudarte.
+
+4
+00:00:11,444 --> 00:00:15,014
+Mantén Ctrl + Alt + Espacio y pídeme lo que necesites.
+
+5
+00:00:16,064 --> 00:00:20,087
+Pongo tu música y tus videos, abro tus aplicaciones y cierro pestañas.
+
+6
+00:00:21,137 --> 00:00:24,835
+Agendo tus citas, te recuerdo pendientes y te resumo las noticias.
+
+7
+00:00:25,885 --> 00:00:29,746
+Escribo tus mensajes de WhatsApp, y siempre te pregunto antes de enviarlos.
+
+8
+00:00:30,796 --> 00:00:33,403
+Muéstrame una imagen, y te digo qué hay en ella.
+
+9
+00:00:34,453 --> 00:00:37,536
+Kalmiya. Tu asistente de voz, 100 % local.

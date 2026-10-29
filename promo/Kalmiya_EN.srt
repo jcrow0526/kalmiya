@@ -1,0 +1,35 @@
+1
+00:00:01,100 --> 00:00:02,859
+Hi, I'm Kalmiya.
+
+2
+00:00:03,909 --> 00:00:09,001
+I run locally, right on your computer. Your voice never leaves your PC.
+
+3
+00:00:10,051 --> 00:00:11,682
+And I'm here to help you.
+
+4
+00:00:12,732 --> 00:00:16,872
+Hold Ctrl + Alt + Space and ask me for anything.
+
+5
+00:00:17,922 --> 00:00:22,363
+I play your music and videos, open your apps, and close tabs.
+
+6
+00:00:23,413 --> 00:00:27,796
+I schedule appointments, remind you of things, and summarize the news.
+
+7
+00:00:28,846 --> 00:00:33,415
+I write your WhatsApp messages, and always ask before sending them.
+
+8
+00:00:34,465 --> 00:00:37,583
+Show me an image, and I'll tell you what's in it.
+
+9
+00:00:38,633 --> 00:00:42,377
+Kalmiya. Your voice assistant, 100% local.

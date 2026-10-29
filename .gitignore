@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+# Generados: el instalador y los videos completos se publican como "release" en GitHub.
+dist/
+promo/*.mp4
+promo/_*
+*.log
+.claude/
