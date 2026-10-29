@@ -3,7 +3,7 @@
 <p align="center">
   <b>Asistente de voz para Windows, 100 % local.</b><br>
   <i>A local, private voice assistant for Windows — Spanish &amp; English.</i><br><br>
-  <a href="https://jcrow0526.github.io/kalmiya/">Sitio web</a> ·
+  <a href="docs/">Landing page</a> ·
   <a href="https://github.com/jcrow0526/kalmiya/releases/latest/download/KalmiyaSetup.exe">Descargar para Windows</a> ·
   <a href="https://github.com/jcrow0526/kalmiya/releases/latest">Videos de presentación</a>
 </p>
@@ -38,6 +38,13 @@ modelos). Para quitarlo: menú Inicio → *Desinstalar Kalmiya*. En consola:
 
 La primera vez, Kalmiya pregunta el idioma (español o inglés), deja escuchar las voces y presenta
 lo que puede hacer (icono → *Ver presentación* para repetirla).
+
+### Landing page
+
+Está en [docs/](docs/) (HTML estático, sin dependencias). Para hospedarla con Docker o
+[Easypanel](https://easypanel.io): crea una App desde este repositorio, tipo de build **Dockerfile** con
+ruta **`docs`**, y expón el puerto **80**. Los recursos (orbe, videos, portadas) se regeneran con
+`python docs/make_assets.py`.
 
 ### Generar un `KalmiyaSetup.exe`
 
