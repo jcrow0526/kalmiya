@@ -46,7 +46,15 @@ class Transcriber:
         try:  # sin internet si el modelo ya está descargado
             self._model = WhisperModel(self.model_name, device=device, compute_type=compute,
                                        download_root=root, local_files_only=True)
-        except Exception:
+        except Exception as e:
+            if "incomplete" in str(e) or "failed to read" in str(e):
+                # Archivos dañados (p. ej. enlaces de la caché de Hugging Face rotos al copiar la carpeta):
+                # se borra la copia de ese modelo y se descarga de nuevo.
+                import shutil
+                log.warning("Modelo Whisper dañado (%s); se descargará de nuevo", e)
+                for d in Path(root).glob("models--*"):
+                    if self.model_name.replace("/", "--").lower() in d.name.lower():
+                        shutil.rmtree(d, ignore_errors=True)
             self._model = WhisperModel(self.model_name, device=device, compute_type=compute, download_root=root)
         if device == "cuda":
             # Hay GPU NVIDIA pero puede faltar cuBLAS/cuDNN: probar y, si falla, usar CPU.
