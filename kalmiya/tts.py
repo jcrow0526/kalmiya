@@ -1,5 +1,6 @@
 """Texto a voz local: Piper (neuronal) con respaldo en la voz de Windows (SAPI)."""
 import logging
+import queue
 import re
 import threading
 
@@ -43,22 +44,69 @@ class Speaker:
             self._voice = PiperVoice.load(str(self.voice_path))
         return self._voice
 
-    def _piper_audio(self, text: str) -> tuple[np.ndarray, int] | None:
+    def warmup(self) -> None:
+        """Carga la voz y genera una palabra: la primera respuesta ya no espera ~3.5 s."""
+        if self._load_piper() is not None:
+            self._piper_audio("Hola.")
+
+    @staticmethod
+    def _pieces(text: str) -> list[str]:
+        """Oraciones; la primera se parte en su primera coma para que el primer audio llegue antes
+        ("Listo, te recordaré…" suena "Listo," mientras se genera el resto)."""
+        sents = [s for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+        if sents:
+            m = re.match(r"^(.{4,}?[,;:])\s+(.{15,})$", sents[0])
+            if m:
+                sents[:1] = [m.group(1), m.group(2)]
+        return sents
+
+    def chunks(self, text: str):
+        """Audio por fragmentos (array, frecuencia), en orden, según se va generando."""
         voice = self._load_piper()
         if voice is None:
-            return None
+            return
         try:
             from piper import SynthesisConfig
             syn = SynthesisConfig(length_scale=1.0 / max(self.speed, 0.1))
         except ImportError:
             syn = None
-        parts, rate = [], voice.config.sample_rate
-        for chunk in voice.synthesize(text, syn_config=syn) if syn else voice.synthesize(text):
-            parts.append(chunk.audio_float_array)
-            rate = chunk.sample_rate
+        for piece in self._pieces(text):
+            for chunk in voice.synthesize(piece, syn_config=syn) if syn else voice.synthesize(piece):
+                yield chunk.audio_float_array.astype(np.float32), chunk.sample_rate
+
+    def _piper_audio(self, text: str) -> tuple[np.ndarray, int] | None:
+        parts = list(self.chunks(text))
         if not parts:
             return None
-        return np.concatenate(parts).astype(np.float32), rate
+        return np.concatenate([p for p, _ in parts]), parts[0][1]
+
+    def _stream(self, text: str) -> bool:
+        """Reproduce cada fragmento en cuanto está listo mientras se generan los siguientes.
+        Devuelve False si Piper no pudo generar nada (para usar la voz de Windows)."""
+        q: queue.Queue = queue.Queue()
+        failed = []
+
+        def produce():
+            try:
+                for item in self.chunks(text):
+                    if self._cancelled:
+                        break
+                    q.put(item)
+            except Exception as e:
+                failed.append(e)
+            finally:
+                q.put(None)
+        threading.Thread(target=produce, daemon=True).start()
+        played = False
+        while (item := q.get()) is not None:
+            if self._cancelled:
+                continue  # vaciar la cola sin reproducir
+            audio.play(*item)
+            played = True
+        if failed and not played:
+            log.error("Piper falló: %s", failed[0])
+            return False
+        return played or self._cancelled
 
     def _sapi(self, text: str) -> None:
         import pyttsx3
@@ -78,11 +126,7 @@ class Speaker:
         with self._lock:
             self._cancelled = False
             try:
-                result = self._piper_audio(text)
-                if self._cancelled:  # Esc mientras se generaba el audio
-                    return
-                if result is not None:
-                    audio.play(*result)
+                if self._stream(text):  # Esc corta tanto la generación como la reproducción
                     return
             except Exception:
                 log.exception("Piper falló; usando la voz de Windows")

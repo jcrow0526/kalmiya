@@ -26,7 +26,8 @@ foreach ($f in @("calendario.json", "config.json")) {
 }
 
 foreach ($dir in @([Environment]::GetFolderPath("Programs"), [Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("Startup"))) {
-    Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir "Kalmiya.lnk"), (Join-Path $dir "Desinstalar Kalmiya.lnk")
+    Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir "Kalmiya.lnk"), (Join-Path $dir "Desinstalar Kalmiya.lnk"),
+        (Join-Path $dir "Kalmiya Benchmark.lnk")
 }
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Kalmiya"
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $env:LOCALAPPDATA "Programs\KalmiyaSetup")

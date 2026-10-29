@@ -1,0 +1,37 @@
+name: Resultado de benchmark · Benchmark result
+description: Comparte cómo funciona Kalmiya en tu equipo. Share how Kalmiya performs on your PC.
+title: "[Benchmark] "
+labels: ["benchmark"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por medir Kalmiya en tu equipo. Ejecuta **Kalmiya Benchmark** desde el menú Inicio
+        (o `python -m kalmiya.bench --submit`): este formulario se abre ya rellenado.
+        *Thanks! Run **Kalmiya Benchmark** from the Start menu; this form opens pre-filled.*
+  - type: textarea
+    id: results
+    attributes:
+      label: Resultados · Results
+      description: Tabla que imprime el benchmark (también está en el archivo .md que guarda).
+    validations:
+      required: true
+  - type: textarea
+    id: json
+    attributes:
+      label: JSON
+      description: Resumen en JSON (o adjunta el archivo .json de Documentos\Kalmiya\benchmark).
+      render: json
+  - type: dropdown
+    id: power
+    attributes:
+      label: Energía · Power
+      options:
+        - Laptop enchufada · Laptop plugged in
+        - Laptop con batería · Laptop on battery
+        - PC de escritorio · Desktop
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notas · Notes
+      description: ¿Qué tal se sintió al usarla? ¿Algo que fallara? How did it feel in real use?

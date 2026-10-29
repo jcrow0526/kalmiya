@@ -1,0 +1,543 @@
+{
+ "schema": 1,
+ "date": "2026-10-29T12:50:05",
+ "system": {
+  "os": "Windows 11 (10.0.26200)",
+  "cpu": "AMD Ryzen 7 7840HS w/ Radeon 780M Graphics",
+  "cores": 8,
+  "threads": 16,
+  "ram_gb": 63.2,
+  "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "vram_gb": 8.0,
+  "gpu_driver": "617.14",
+  "llama_cpp": "b11985-cuda",
+  "kalmiya": "0.1.0",
+  "llm_model": "LFM3-1.7B-Q4_K_M.gguf",
+  "whisper_model": "large-v3-turbo",
+  "voice": "es_AR-daniela-high.onnx"
+ },
+ "notes": "Laptop enchufada; Kalmiya abierta en segundo plano.",
+ "tts": {
+  "es": {
+   "load_s": 2.768,
+   "short": {
+    "synth_s": 0.392,
+    "first_chunk_s": 0.094,
+    "audio_s": 2.76,
+    "rtf": 0.142
+   },
+   "long": {
+    "synth_s": 1.434,
+    "first_chunk_s": 0.15,
+    "audio_s": 10.67,
+    "rtf": 0.134
+   }
+  },
+  "en": {
+   "load_s": 2.677,
+   "short": {
+    "synth_s": 0.484,
+    "first_chunk_s": 0.098,
+    "audio_s": 3.3,
+    "rtf": 0.147
+   }
+  }
+ },
+ "stt": {
+  "model": "large-v3-turbo",
+  "device": "cuda",
+  "load_s": 2.57,
+  "langs": {
+   "es": {
+    "latency": {
+     "p50": 0.231,
+     "p90": 0.242,
+     "mean": 0.232,
+     "n": 8
+    },
+    "wer_mean": 0.146,
+    "items": [
+     {
+      "ref": "Pon Bad Bunny en YouTube.",
+      "hyp": "Con Bad Bunny en Soto, eh.",
+      "s": 0.238,
+      "wer": 0.6,
+      "audio_s": 1.43
+     },
+     {
+      "ref": "¿Cómo está el clima mañana en Madrid?",
+      "hyp": "¿Cómo está el clima mañana en Madrid?",
+      "s": 0.229,
+      "wer": 0.0,
+      "audio_s": 1.72
+     },
+     {
+      "ref": "Agéndame dentista el viernes a las cuatro de la tarde.",
+      "hyp": "Agéname dentista el viernes a las 4 de la tarde.",
+      "s": 0.243,
+      "wer": 0.1,
+      "audio_s": 2.62
+     },
+     {
+      "ref": "Cierra la pestaña de YouTube.",
+      "hyp": "Cierra la pestaña de ShowTube.",
+      "s": 0.241,
+      "wer": 0.2,
+      "audio_s": 1.5
+     },
+     {
+      "ref": "Recuérdame sacar la ropa en veinte minutos.",
+      "hyp": "Recuérdame sacar la papa en 20 minutos.",
+      "s": 0.233,
+      "wer": 0.143,
+      "audio_s": 2.16
+     },
+     {
+      "ref": "Resúmeme las noticias de tecnología.",
+      "hyp": "Resúmeme las noticias de tecnología.",
+      "s": 0.226,
+      "wer": 0.0,
+      "audio_s": 1.89
+     },
+     {
+      "ref": "Abre el primer video recomendado.",
+      "hyp": "Abre el primer video recomendado.",
+      "s": 0.222,
+      "wer": 0.0,
+      "audio_s": 1.72
+     },
+     {
+      "ref": "Dile a Ana que ya voy en camino.",
+      "hyp": "Dí a Ana que ya voy en camino.",
+      "s": 0.227,
+      "wer": 0.125,
+      "audio_s": 1.66
+     }
+    ]
+   },
+   "en": {
+    "latency": {
+     "p50": 0.231,
+     "p90": 0.426,
+     "mean": 0.295,
+     "n": 4
+    },
+    "wer_mean": 0.0,
+    "items": [
+     {
+      "ref": "Play Bad Bunny on YouTube.",
+      "hyp": "Play Bad Bunny on YouTube.",
+      "s": 0.508,
+      "wer": 0.0,
+      "audio_s": 2.03
+     },
+     {
+      "ref": "What's the weather like tomorrow in Madrid?",
+      "hyp": "What's the weather like tomorrow in Madrid?",
+      "s": 0.234,
+      "wer": 0.0,
+      "audio_s": 2.04
+     },
+     {
+      "ref": "Remind me to do the laundry in twenty minutes.",
+      "hyp": "Remind me to do the laundry in 20 minutes.",
+      "s": 0.228,
+      "wer": 0.0,
+      "audio_s": 2.71
+     },
+     {
+      "ref": "Close the YouTube tab.",
+      "hyp": "Close the YouTube tab.",
+      "s": 0.209,
+      "wer": 0.0,
+      "audio_s": 1.3
+     }
+    ]
+   }
+  }
+ },
+ "llm": {
+  "shared_server": true,
+  "load_s": 0.0,
+  "accuracy": 1.0,
+  "correct": 24,
+  "total": 24,
+  "resolved_by_rules": 4,
+  "cache_misses": 0,
+  "latency": {
+   "p50": 0.232,
+   "p90": 0.311,
+   "mean": 0.22,
+   "n": 24
+  },
+  "latency_model_only": {
+   "p50": 0.245,
+   "p90": 0.321,
+   "mean": 0.265,
+   "n": 20
+  },
+  "prompt_tokens_p50": 479.0,
+  "cached_tokens_p50": 3464.0,
+  "speed": {
+   "prompt_tok_s": 11055.1,
+   "gen_tok_s": 149.3,
+   "prompt_n": 1340,
+   "predicted_n": 12
+  },
+  "items": [
+   {
+    "text": "Pon Bad Bunny",
+    "expected": "reproducir",
+    "called": "reproducir",
+    "ok": true,
+    "s": 0.246,
+    "llm_calls": 1,
+    "prompt_n": 519,
+    "cache_n": 3420,
+    "prompt_ms": 73.548,
+    "predicted_n": 23,
+    "predicted_ms": 145.478,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Ponme un video de cómo hacer tacos al pastor",
+    "expected": "reproducir",
+    "called": "reproducir",
+    "ok": true,
+    "s": 0.269,
+    "llm_calls": 1,
+    "prompt_n": 523,
+    "cache_n": 3423,
+    "prompt_ms": 83.75,
+    "predicted_n": 25,
+    "predicted_ms": 159.435,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Quiero escuchar Shakira en Spotify",
+    "expected": "reproducir",
+    "called": "reproducir",
+    "ok": true,
+    "s": 0.29,
+    "llm_calls": 1,
+    "prompt_n": 514,
+    "cache_n": 3430,
+    "prompt_ms": 65.452,
+    "predicted_n": 31,
+    "predicted_ms": 199.227,
+    "reply": "Hecho."
+   },
+   {
+    "text": "¿Cómo está el clima en Guadalajara?",
+    "expected": "clima",
+    "called": "clima",
+    "ok": true,
+    "s": 0.217,
+    "llm_calls": 1,
+    "prompt_n": 513,
+    "cache_n": 3430,
+    "prompt_ms": 63.685,
+    "predicted_n": 20,
+    "predicted_ms": 126.649,
+    "reply": "Hecho."
+   },
+   {
+    "text": "¿Va a llover mañana en Madrid?",
+    "expected": "clima",
+    "called": "clima",
+    "ok": true,
+    "s": 0.262,
+    "llm_calls": 1,
+    "prompt_n": 513,
+    "cache_n": 3430,
+    "prompt_ms": 64.682,
+    "predicted_n": 27,
+    "predicted_ms": 171.646,
+    "reply": "Hecho."
+   },
+   {
+    "text": "¿Quién es Bad Bunny?",
+    "expected": "buscar_info",
+    "called": "buscar_info",
+    "ok": true,
+    "s": 0.579,
+    "llm_calls": 2,
+    "prompt_n": 512,
+    "cache_n": 3430,
+    "prompt_ms": 65.989,
+    "predicted_n": 21,
+    "predicted_ms": 131.914,
+    "reply": "Buscaré la información sobre Bad Bunny. ¿Podrías decirme si quieres escuchar una canción de él o ver un video?"
+   },
+   {
+    "text": "¿Cuánto es 20 por 8?",
+    "expected": "responder|-",
+    "called": null,
+    "ok": true,
+    "s": 0.274,
+    "llm_calls": 1,
+    "prompt_n": 480,
+    "cache_n": 3464,
+    "prompt_ms": 62.783,
+    "predicted_n": 29,
+    "predicted_ms": 179.237,
+    "reply": "20 por 8 es 160."
+   },
+   {
+    "text": "Ponme dentista el viernes a las 4",
+    "expected": "crear_evento",
+    "called": "crear_evento",
+    "ok": true,
+    "s": 0.334,
+    "llm_calls": 1,
+    "prompt_n": 481,
+    "cache_n": 3464,
+    "prompt_ms": 64.482,
+    "predicted_n": 39,
+    "predicted_ms": 246.434,
+    "reply": "Hecho."
+   },
+   {
+    "text": "¿Qué tengo mañana?",
+    "expected": "ver_agenda",
+    "called": "ver_agenda",
+    "ok": true,
+    "s": 0.219,
+    "llm_calls": 1,
+    "prompt_n": 474,
+    "cache_n": 3464,
+    "prompt_ms": 65.619,
+    "predicted_n": 20,
+    "predicted_ms": 126.51,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Recuérdame sacar la ropa en 20 minutos",
+    "expected": "recordatorio",
+    "called": "recordatorio",
+    "ok": true,
+    "s": 0.278,
+    "llm_calls": 1,
+    "prompt_n": 482,
+    "cache_n": 3464,
+    "prompt_ms": 61.994,
+    "predicted_n": 30,
+    "predicted_ms": 189.82,
+    "reply": "Hecho."
+   },
+   {
+    "text": "¿Qué recordatorios tengo?",
+    "expected": "ver_recordatorios",
+    "called": "ver_recordatorios",
+    "ok": true,
+    "s": 0.172,
+    "llm_calls": 1,
+    "prompt_n": 476,
+    "cache_n": 3464,
+    "prompt_ms": 64.182,
+    "predicted_n": 12,
+    "predicted_ms": 74.396,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Abre Spotify",
+    "expected": "abrir_aplicacion",
+    "called": "abrir_aplicacion",
+    "ok": true,
+    "s": 0.233,
+    "llm_calls": 1,
+    "prompt_n": 474,
+    "cache_n": 3464,
+    "prompt_ms": 63.788,
+    "predicted_n": 23,
+    "predicted_ms": 144.068,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Cierra la calculadora",
+    "expected": "cerrar_aplicacion",
+    "called": "cerrar_aplicacion",
+    "ok": true,
+    "s": 0.231,
+    "llm_calls": 1,
+    "prompt_n": 475,
+    "cache_n": 3464,
+    "prompt_ms": 64.89,
+    "predicted_n": 22,
+    "predicted_ms": 138.518,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Busca recetas de mole en Google",
+    "expected": "buscar_web",
+    "called": "buscar_web",
+    "ok": true,
+    "s": 0.29,
+    "llm_calls": 1,
+    "prompt_n": 478,
+    "cache_n": 3464,
+    "prompt_ms": 65.236,
+    "predicted_n": 31,
+    "predicted_ms": 200.129,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Abre youtube.com",
+    "expected": "abrir_web|abrir_aplicacion",
+    "called": "abrir_web",
+    "ok": true,
+    "s": 0.223,
+    "llm_calls": 1,
+    "prompt_n": 474,
+    "cache_n": 3464,
+    "prompt_ms": 65.632,
+    "predicted_n": 21,
+    "predicted_ms": 132.634,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Descarga el video de Dákiti en mp3",
+    "expected": "descargar_video",
+    "called": "descargar_video",
+    "ok": true,
+    "s": 0.319,
+    "llm_calls": 1,
+    "prompt_n": 481,
+    "cache_n": 3464,
+    "prompt_ms": 63.838,
+    "predicted_n": 35,
+    "predicted_ms": 226.533,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Sube el volumen",
+    "expected": "controlar_medios",
+    "called": "controlar_medios",
+    "ok": true,
+    "s": 0.244,
+    "llm_calls": 1,
+    "prompt_n": 474,
+    "cache_n": 3464,
+    "prompt_ms": 63.572,
+    "predicted_n": 25,
+    "predicted_ms": 155.457,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Toma una captura de pantalla",
+    "expected": "captura_pantalla",
+    "called": "captura_pantalla",
+    "ok": true,
+    "s": 0.16,
+    "llm_calls": 1,
+    "prompt_n": 476,
+    "cache_n": 3464,
+    "prompt_ms": 61.015,
+    "predicted_n": 13,
+    "predicted_ms": 77.117,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Abre la carpeta de descargas",
+    "expected": "abrir_carpeta",
+    "called": "abrir_carpeta",
+    "ok": true,
+    "s": 0.225,
+    "llm_calls": 1,
+    "prompt_n": 478,
+    "cache_n": 3464,
+    "prompt_ms": 60.552,
+    "predicted_n": 23,
+    "predicted_ms": 140.545,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Escríbele a Ana que ya voy",
+    "expected": "whatsapp_mensaje",
+    "called": "whatsapp_mensaje",
+    "ok": true,
+    "s": 0.0,
+    "llm_calls": 0,
+    "prompt_n": null,
+    "cache_n": null,
+    "prompt_ms": null,
+    "predicted_n": null,
+    "predicted_ms": null,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Minimiza esto",
+    "expected": "controlar_ventana",
+    "called": "controlar_ventana",
+    "ok": true,
+    "s": 0.225,
+    "llm_calls": 1,
+    "prompt_n": 474,
+    "cache_n": 3464,
+    "prompt_ms": 59.611,
+    "predicted_n": 23,
+    "predicted_ms": 143.014,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Resúmeme las noticias",
+    "expected": "resumen_noticias",
+    "called": "resumen_noticias",
+    "ok": true,
+    "s": 0.0,
+    "llm_calls": 0,
+    "prompt_n": null,
+    "cache_n": null,
+    "prompt_ms": null,
+    "predicted_n": null,
+    "predicted_ms": null,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Siguiente canción",
+    "expected": "controlar_medios",
+    "called": "controlar_medios",
+    "ok": true,
+    "s": 0.0,
+    "llm_calls": 0,
+    "prompt_n": null,
+    "cache_n": null,
+    "prompt_ms": null,
+    "predicted_n": null,
+    "predicted_ms": null,
+    "reply": "Hecho."
+   },
+   {
+    "text": "Cierra la pestaña de YouTube",
+    "expected": "pestana",
+    "called": "pestana",
+    "ok": true,
+    "s": 0.0,
+    "llm_calls": 0,
+    "prompt_n": null,
+    "cache_n": null,
+    "prompt_ms": null,
+    "predicted_n": null,
+    "predicted_ms": null,
+    "reply": "Hecho."
+   }
+  ]
+ },
+ "vision": {
+  "load_s": 1.51,
+  "latency": {
+   "p50": 0.226,
+   "p90": 0.278,
+   "mean": 0.226,
+   "n": 2
+  },
+  "correct": 2,
+  "total": 2,
+  "answers": [
+   "La palabra escrita en la imagen es KALMIYA.",
+   "El círculo es de color rojo."
+  ]
+ },
+ "e2e_estimate_s": 0.56,
+ "duration_s": 30.5
+}

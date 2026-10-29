@@ -52,8 +52,11 @@ Con [Inno Setup 6](https://jrsoftware.org/isinfo.php): `iscc installer\kalmiya.i
 
 ## Velocidad (RTX 4070 Laptop 8 GB, Ryzen 7 7840HS)
 
-Atajo soltado → acción ejecutada: **~0.5 s** (Whisper turbo 0.2 s + LFM3 0.3 s, ambos en GPU).
-Preguntar por una imagen: ~0.3–1 s una vez cargado LFM3‑VL.
+De soltar el atajo a oír la respuesta: **~0.56 s** (Whisper 0.23 s + LFM3 0.23 s + primer audio 0.09 s);
+LFM3 elige la herramienta correcta en 24 de 24 órdenes de prueba; LFM3‑VL responde sobre una imagen en 0.23 s.
+
+**Mide tu equipo:** menú Inicio → *Kalmiya Benchmark* (o `python -m kalmiya.bench`) y comparte el resultado.
+Detalles y tabla de la comunidad en [bench/](bench/README.md) · [resultados](bench/RESULTS.md).
 
 | Voz a texto (5 frases en español) | Latencia/frase | Aciertos |
 |---|---|---|

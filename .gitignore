@@ -8,3 +8,4 @@ promo/_*
 .claude/
 _tmp/
 Reparar Kalmiya.bat
+bench/_runs/

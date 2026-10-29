@@ -4,6 +4,7 @@ import socket
 import sys
 import threading
 import time
+from pathlib import Path
 
 import keyboard
 import numpy as np
@@ -63,6 +64,7 @@ class KalmiyaApp:
         self.ui.on_calendar = self.calendar_win.show
         self.ui.on_reminders = self.reminders_win.show
         self.ui.on_settings = self._open_settings
+        self.ui.on_benchmark = self._run_benchmark
         self.ui.on_welcome = self._welcome
 
     # ------------------------------------------------------------ arranque
@@ -78,6 +80,13 @@ class KalmiyaApp:
         if not self.cfg.ciudad:
             threading.Thread(target=self._detect_city, daemon=True).start()
         self.ui.root.mainloop()
+
+    def _run_benchmark(self) -> None:
+        """Abre el benchmark en su propia consola (usa el LFM3 que Kalmiya ya tiene cargado)."""
+        import subprocess
+        python = Path(sys.executable).with_name("python.exe")  # pythonw no tiene consola
+        subprocess.Popen([str(python), "-m", "kalmiya.bench", "--ask"], cwd=str(Path(__file__).parent.parent),
+                         creationflags=subprocess.CREATE_NEW_CONSOLE)
 
     def _detect_city(self) -> None:
         from .geo import detect_city
@@ -123,6 +132,7 @@ class KalmiyaApp:
         """Idioma y voz elegidos (presentación o configuración): textos, voz, Whisper y respuestas."""
         set_lang(self.cfg.idioma)
         self.speaker = Speaker(self.cfg.piper_voz, self.cfg.velocidad_voz)
+        threading.Thread(target=self.speaker.warmup, daemon=True).start()
         if self.agent:
             self.agent.english = self.cfg.idioma.startswith("en")
         if getattr(self.stt, "language", self.cfg.idioma) != self.cfg.idioma:
@@ -143,6 +153,8 @@ class KalmiyaApp:
 
     def _warmup(self) -> None:
         self.ui.status(t("preparing"), t("loading"))
+        # La voz se carga en paralelo con LFM3 y Whisper (antes, la primera respuesta esperaba ~3.5 s).
+        threading.Thread(target=self.speaker.warmup, daemon=True).start()
         try:
             self.server.start()
             self.agent = Agent(self.server.base_url, english=self.cfg.idioma.startswith("en"))

@@ -144,6 +144,16 @@ class LlamaServer:
         self.proc: subprocess.Popen | None = None
         self.base_url = cfg.llm_url_externa.rstrip("/") or f"http://127.0.0.1:{cfg.llm_puerto}/v1"
 
+    @staticmethod
+    def args(cfg: Config, exe, port: int) -> list[str]:
+        """Comando de llama-server (también lo usa el benchmark, para medir lo mismo que se ejecuta)."""
+        return [
+            str(exe), "-m", str(MODELS_DIR / cfg.llm_gguf), "--port", str(port), "--host", "127.0.0.1",
+            "-c", str(cfg.llm_contexto), "-ngl", str(cfg.llm_gpu_capas),
+            "--jinja", "--temp", "0.1", "--top-k", "50", "--repeat-penalty", "1.1",
+            "--chat-template-kwargs", '{"enable_thinking": false}',
+        ]
+
     def start(self, timeout: float = 120) -> None:
         if self.cfg.llm_url_externa:
             return  # el usuario usa Ollama / LM Studio / otro servidor
@@ -151,12 +161,7 @@ class LlamaServer:
         model = MODELS_DIR / self.cfg.llm_gguf
         if exe is None or not model.exists():
             raise RuntimeError("Falta llama-server o el modelo LFM3. Ejecuta el instalador de nuevo.")
-        cmd = [
-            str(exe), "-m", str(model), "--port", str(self.cfg.llm_puerto), "--host", "127.0.0.1",
-            "-c", str(self.cfg.llm_contexto), "-ngl", str(self.cfg.llm_gpu_capas),
-            "--jinja", "--temp", "0.1", "--top-k", "50", "--repeat-penalty", "1.1",
-            "--chat-template-kwargs", '{"enable_thinking": false}',
-        ]
+        cmd = self.args(self.cfg, exe, self.cfg.llm_puerto)
         log.info("Iniciando: %s", " ".join(cmd))
         logf = open(LOG_DIR / "llama-server.log", "w", encoding="utf-8", errors="replace")
         self.proc = subprocess.Popen(
@@ -259,11 +264,12 @@ class Agent:
             ahora=now.strftime("%Y-%m-%d %H:%M"), dia=DIAS[now.weekday()], semana=semana,
             contexto=contexto or "(desconocido)")}
 
+    def _payload(self, messages: list[dict]) -> dict:
+        return {"model": "lfm3", "messages": messages, "tools": tools.schemas(),
+                "temperature": 0.1, "top_k": 50, "repeat_penalty": 1.1, "max_tokens": 512}
+
     def _chat(self, messages: list[dict]) -> dict:
-        r = self.client.post("/chat/completions", json={
-            "model": "lfm3", "messages": messages, "tools": tools.schemas(),
-            "temperature": 0.1, "top_k": 50, "repeat_penalty": 1.1, "max_tokens": 512,
-        })
+        r = self.client.post("/chat/completions", json=self._payload(messages))
         r.raise_for_status()
         return r.json()["choices"][0]["message"]
 

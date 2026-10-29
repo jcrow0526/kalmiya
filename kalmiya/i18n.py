@@ -59,6 +59,7 @@ T = {
     "tray_welcome": ("Ver presentación", "Show introduction"),
     "tray_downloads": ("Abrir descargas", "Open downloads"),
     "tray_logs": ("Ver registros", "View logs"),
+    "tray_bench": ("Medir este equipo (benchmark)", "Benchmark this PC"),
     "tray_quit": ("Salir", "Quit"),
     # herramientas (mientras trabajan)
     "tool_reproducir": ("Buscando la canción", "Finding the song"),

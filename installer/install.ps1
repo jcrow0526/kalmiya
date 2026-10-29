@@ -190,7 +190,16 @@ Shortcut (Join-Path ([Environment]::GetFolderPath("Desktop")) "Kalmiya.lnk")
 $startup = Join-Path ([Environment]::GetFolderPath("Startup")) "Kalmiya.lnk"
 if ($NoStartup) { Remove-Item -Force -ErrorAction SilentlyContinue $startup } else { Shortcut $startup }
 
-$uninstallCmd = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$AppDir\uninstall.ps1`""
+# Benchmark: ventana de consola que mide este equipo y ofrece compartir el resultado en GitHub.
+$b = $shell.CreateShortcut((Join-Path $programs "Kalmiya Benchmark.lnk"))
+$b.TargetPath = Join-Path $Venv "Scripts\python.exe"
+$b.Arguments = "-m kalmiya.bench --ask"
+$b.WorkingDirectory = $AppDir
+$b.IconLocation = $ico
+$b.Description = "Mide como funciona Kalmiya en este equipo"
+$b.Save()
+
+$uninstallCmd ="-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$AppDir\uninstall.ps1`""
 $u = $shell.CreateShortcut((Join-Path $programs "Desinstalar Kalmiya.lnk"))
 $u.TargetPath = "powershell.exe"
 $u.Arguments = $uninstallCmd

@@ -46,6 +46,7 @@ class UI:
         self.on_calendar: Callable[[], None] = lambda: None
         self.on_reminders: Callable[[], None] = lambda: None
         self.on_settings: Callable[[], None] = lambda: None
+        self.on_benchmark: Callable[[], None] = lambda: None
         self.on_welcome: Callable[[], None] = lambda: None
         self.root.after(30, self._pump)
 
@@ -123,6 +124,7 @@ class UI:
             item(t("tray_welcome"), lambda: self.post(self.on_welcome)),
             item(t("tray_downloads"), lambda: os.startfile(str(DOWNLOADS_DIR)) if DOWNLOADS_DIR.exists() else None),
             item(t("tray_logs"), lambda: os.startfile(str(LOG_DIR))),
+            item(t("tray_bench"), lambda: self.on_benchmark()),
             pystray.Menu.SEPARATOR,
             item(t("tray_quit"), lambda: self.post(self._quit)),
         )
