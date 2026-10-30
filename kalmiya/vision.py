@@ -39,17 +39,18 @@ class VisionServer:
     def start(self, timeout: float = 90) -> None:
         if self.proc and self.proc.poll() is None:
             return
-        exe = next(BIN_DIR.rglob("llama-server.exe"), None)
+        from .llm import NO_WINDOW, find_exe, gpu_layers, server_env
+        exe = find_exe("llama-server")
         if exe is None or not self.available:
             raise RuntimeError("Falta el modelo de visión LFM3-VL. Ejecuta el instalador de nuevo.")
         cmd = [str(exe), "-m", str(MODELS_DIR / self.cfg.vl_gguf), "--mmproj", str(MODELS_DIR / self.cfg.vl_mmproj),
                "--port", str(self.cfg.vl_puerto), "--host", "127.0.0.1", "-c", "4096",
-               "-ngl", str(self.cfg.llm_gpu_capas), "--jinja", "--temp", "0.1",
+               *gpu_layers(self.cfg.llm_gpu_capas), "--jinja", "--temp", "0.1",
                "--chat-template-kwargs", '{"enable_thinking": false}']
         log.info("Iniciando visión: %s", " ".join(cmd))
         logf = open(LOG_DIR / "llama-vision.log", "w", encoding="utf-8", errors="replace")
         self.proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=str(exe.parent),
-                                     creationflags=subprocess.CREATE_NO_WINDOW)
+                                     creationflags=NO_WINDOW, env=server_env(exe))
         deadline = time.time() + timeout
         while time.time() < deadline:
             if self.proc.poll() is not None:
@@ -109,6 +110,10 @@ class ImagePicker:
 
     CLICK_BOX = (640, 480)  # zona que se toma con un clic simple (a escala 100 %)
 
+    def __new__(cls, *args, **kw):
+        import sys
+        return object.__new__(SlurpPicker if sys.platform != "win32" and cls is ImagePicker else cls)
+
     def __init__(self, root: tk.Misc, accent: str, done: Callable[[Image.Image | None], None]):
         self.done = done
         self.accent = accent
@@ -167,3 +172,39 @@ class ImagePicker:
     def _finish(self, img) -> None:
         self.win.destroy()
         self.done(img)
+
+
+class SlurpPicker(ImagePicker):
+    """Lo mismo en Wayland con `slurp` (la selección) y `grim` (la captura). `done` se llama
+    desde otro hilo: la app solo arranca ahí un hilo nuevo."""
+
+    def __init__(self, root: tk.Misc, accent: str, done: Callable[[Image.Image | None], None]):
+        import threading
+        self.done = done
+        self.accent = accent.lstrip("#")
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        from .linux import desktop
+        try:
+            mon = desktop.focused_monitor()
+            shot = desktop.grab(output=mon["name"] or None)  # antes de oscurecer, como en Windows
+            r = subprocess.run(["slurp", "-b", "#00000059", "-c", f"#{self.accent}ff", "-w", "3",
+                                "-f", "%x %y %w %h"], capture_output=True, text=True, timeout=120)
+        except Exception as e:
+            log.warning("No pude elegir la imagen: %s", e)
+            self.done(None)
+            return
+        if r.returncode != 0 or not r.stdout.strip():  # Esc
+            self.done(None)
+            return
+        x, y, w, h = (int(v) for v in r.stdout.split())
+        k = shot.width / max(1, round(mon["width"] / mon["scale"]))  # píxeles reales por punto lógico
+        x, y = x - mon["x"], y - mon["y"]
+        if w < 12 and h < 12:  # clic simple: la zona alrededor del puntero
+            bw, bh = self.CLICK_BOX
+            sw, sh = shot.width / k, shot.height / k
+            x = min(max(0, x - bw // 2), max(0, sw - bw))
+            y = min(max(0, y - bh // 2), max(0, sh - bh))
+            w, h = bw, bh
+        self.done(shot.crop([int(v * k) for v in (x, y, x + w, y + h)]))

@@ -6,6 +6,7 @@ de Tk quedaría un borde negro alrededor del resplandor.
 import ctypes
 import ctypes.wintypes as wt
 import math
+import sys
 import time
 import tkinter as tk
 
@@ -123,25 +124,27 @@ class _BLENDFUNCTION(ctypes.Structure):
                 ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_byte)]
 
 
-_user32, _gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-# Los handles son de 64 bits: sin argtypes/restype ctypes los trunca a int de 32.
-_gdi32.CreateDIBSection.restype = ctypes.c_void_p
-_gdi32.CreateDIBSection.argtypes = [ctypes.c_void_p, ctypes.c_void_p, wt.UINT, ctypes.POINTER(ctypes.c_void_p),
-                                    ctypes.c_void_p, wt.DWORD]
-_gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
-_gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
-_gdi32.SelectObject.restype = ctypes.c_void_p
-_gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-_user32.GetDC.restype = ctypes.c_void_p
-_user32.GetDC.argtypes = [wt.HWND]
-_gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
-_user32.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
-_user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
-_user32.UpdateLayeredWindow.argtypes = [wt.HWND, ctypes.c_void_p, ctypes.POINTER(wt.POINT), ctypes.POINTER(wt.SIZE),
-                                        ctypes.c_void_p, ctypes.POINTER(wt.POINT), wt.DWORD,
-                                        ctypes.POINTER(_BLENDFUNCTION), wt.DWORD]
-_user32.GetWindowLongW.restype = ctypes.c_long
-_user32.SetWindowLongW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_long]
+# En Linux el orbe lo dibuja otro proceso en una capa de Wayland (kalmiya/linux/overlay.py).
+if sys.platform == "win32":
+    _user32, _gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+    # Los handles son de 64 bits: sin argtypes/restype ctypes los trunca a int de 32.
+    _gdi32.CreateDIBSection.restype = ctypes.c_void_p
+    _gdi32.CreateDIBSection.argtypes = [ctypes.c_void_p, ctypes.c_void_p, wt.UINT, ctypes.POINTER(ctypes.c_void_p),
+                                        ctypes.c_void_p, wt.DWORD]
+    _gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+    _gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+    _gdi32.SelectObject.restype = ctypes.c_void_p
+    _gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    _user32.GetDC.restype = ctypes.c_void_p
+    _user32.GetDC.argtypes = [wt.HWND]
+    _gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+    _user32.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
+    _user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+    _user32.UpdateLayeredWindow.argtypes = [wt.HWND, ctypes.c_void_p, ctypes.POINTER(wt.POINT), ctypes.POINTER(wt.SIZE),
+                                            ctypes.c_void_p, ctypes.POINTER(wt.POINT), wt.DWORD,
+                                            ctypes.POINTER(_BLENDFUNCTION), wt.DWORD]
+    _user32.GetWindowLongW.restype = ctypes.c_long
+    _user32.SetWindowLongW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_long]
 
 GWL_EXSTYLE = -20
 WS_EX_LAYERED, WS_EX_TRANSPARENT, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x80000, 0x20, 0x80, 0x08000000

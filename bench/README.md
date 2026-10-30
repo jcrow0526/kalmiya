@@ -9,10 +9,13 @@ contestarte, y si elige bien. Tarda de 2 a 4 minutos. Las órdenes se simulan: n
 
 - **Con Kalmiya instalada:** menú Inicio → **Kalmiya Benchmark**, o clic derecho en el icono de Kalmiya →
   *Medir este equipo (benchmark)*. Al terminar te pregunta si quieres compartir el resultado.
+- **En Linux:** clic derecho en el icono de Kalmiya → *Medir este equipo (benchmark)* (se abre en tu terminal), o
+  `cd ~/.local/share/kalmiya/app && ../venv/bin/python -m kalmiya.bench`. Si Kalmiya no está abierta, cierra
+  antes otros modelos en la GPU (Ollama, LM Studio): el benchmark carga Whisper y LFM3 por su cuenta.
 - **Desde el código:** `python -m kalmiya.bench` (opciones: `--quick`, `--no-vision`, `--notes "…"`, `--submit`).
 
-Guarda dos archivos en `Documentos\Kalmiya\benchmark\`: `kalmiya-bench-<equipo>-<fecha>.json` (todo el
-detalle) y `.md` (la tabla resumen).
+Guarda dos archivos en `Documentos\Kalmiya\benchmark\` (en Linux, `~/Documents/Kalmiya/benchmark/`):
+`kalmiya-bench-<equipo>-<fecha>.json` (todo el detalle) y `.md` (la tabla resumen).
 
 ## Cómo compartir tu resultado
 

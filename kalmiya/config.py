@@ -1,14 +1,20 @@
 """Rutas y configuración persistente de Kalmiya."""
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 APP_NAME = "Kalmiya"
 
-# Todo lo de la app vive en %LOCALAPPDATA%\Kalmiya (modelos, binarios, logs, config).
-_LOCAL = Path(os.environ.get("LOCALAPPDATA", Path.home()))
-HOME = Path(os.environ.get("KALMIYA_HOME") or _LOCAL / APP_NAME)
+# Todo lo de la app vive en %LOCALAPPDATA%\Kalmiya (modelos, binarios, logs, config);
+# en Linux, en ~/.local/share/kalmiya.
+if sys.platform == "win32":
+    _LOCAL = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+    HOME = Path(os.environ.get("KALMIYA_HOME") or _LOCAL / APP_NAME)
+else:
+    _LOCAL = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    HOME = Path(os.environ.get("KALMIYA_HOME") or _LOCAL / APP_NAME.lower())
 if not os.environ.get("KALMIYA_HOME") and not HOME.exists() and (_LOCAL / "Eco" / "models").exists():
     HOME = _LOCAL / "Eco"  # instalación anterior (cuando se llamaba Eco) aún sin migrar
 MODELS_DIR = HOME / "models"
@@ -26,7 +32,7 @@ EVENTS_DIR = USER / "Documents" / "Kalmiya" / "eventos"
 
 @dataclass
 class Config:
-    # Atajos (sintaxis de la librería `keyboard`).
+    # Atajos (sintaxis de la librería `keyboard`; en Linux se registran como binds de Hyprland).
     hotkey_agente: str = "ctrl+alt+space"
     hotkey_dictado: str = "ctrl+alt+d"
     hotkey_nueva: str = "ctrl+alt+n"  # olvidar la conversación y empezar otra

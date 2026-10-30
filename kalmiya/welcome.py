@@ -1,4 +1,5 @@
 """Presentación de primer uso: idioma y voz, qué es Kalmiya, los atajos y qué se le puede pedir."""
+import sys
 import time
 import tkinter as tk
 from typing import Callable
@@ -12,7 +13,7 @@ from .i18n import DEFAULT_VOICE, VOICES, set_lang
 from .orb import OrbRenderer
 
 BG, FG, MUTED, CARD, CARD_HI = "#0d0e11", "#f2f2f5", "#8e909c", "#17181d", "#22242b"
-FONT = "Segoe UI"
+FONT = "Segoe UI" if sys.platform == "win32" else "Noto Sans"
 COLORES = {"Lima": "#7CFF2B", "Cian": "#2BD9FF", "Azul": "#4C7DFF", "Violeta": "#B04CFF",
            "Rosa": "#FF4CA8", "Ámbar": "#FFB02B"}
 PREVIEW = {"es": "Hola, soy Kalmiya. ¿En qué te ayudo?", "en": "Hi, I'm Kalmiya. How can I help?"}
@@ -27,7 +28,7 @@ def slides(cfg: Config) -> list[tuple[str, str, list[str]]]:
     if cfg.idioma.startswith("en"):
         return [
             ("Hi, I'm Kalmiya",
-             "Your voice assistant for Windows. I listen, understand and act on your PC — and everything runs "
+             "Your voice assistant for " + ("Windows" if sys.platform == "win32" else "Linux") + ". I listen, understand and act on your PC — and everything runs "
              "right here: your voice never leaves your computer.", []),
             ("Hold, talk, release",
              f"Hold {k(cfg.hotkey_agente)}, tell me what you need and let go. This orb moves with your voice "
@@ -50,7 +51,7 @@ def slides(cfg: Config) -> list[tuple[str, str, list[str]]]:
         ]
     return [
         ("Hola, soy Kalmiya",
-         "Tu asistente de voz para Windows. Escucho, entiendo y actúo en tu PC, y todo corre aquí mismo: "
+         "Tu asistente de voz para " + ("Windows" if sys.platform == "win32" else "Linux") + ". Escucho, entiendo y actúo en tu PC, y todo corre aquí mismo: "
          "tu voz no sale de tu computadora.", []),
         ("Mantén, habla, suelta",
          f"Mantén {k(cfg.hotkey_agente)}, dime lo que necesitas y suelta. Este orbe se mueve con tu voz "
@@ -275,6 +276,8 @@ def set_icon(win: tk.Toplevel, color: str) -> None:
 
 def _dark_titlebar(win: tk.Toplevel) -> None:
     """Barra de título oscura y esquinas redondeadas de Windows 11."""
+    if sys.platform != "win32":
+        return
     import ctypes
     try:
         win.update_idletasks()

@@ -103,21 +103,27 @@ def system_info(cfg: Config) -> dict:
             "threads": psutil.cpu_count(), "ram_gb": round(psutil.virtual_memory().total / 2**30, 1),
             "gpu": None, "vram_gb": None, "gpu_driver": None}
     try:
-        import winreg
-        k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
-        info["cpu"] = winreg.QueryValueEx(k, "ProcessorNameString")[0].strip()
+        if sys.platform == "win32":
+            import winreg
+            k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+            info["cpu"] = winreg.QueryValueEx(k, "ProcessorNameString")[0].strip()
+        else:  # platform.processor() en Linux solo dice "x86_64"
+            cpu = re.search(r"^model name\s*:\s*(.+)$", Path("/proc/cpuinfo").read_text(), re.M)
+            info["cpu"] = cpu.group(1).strip() if cpu else info["cpu"]
+            os_name = re.search(r'^PRETTY_NAME="?([^"\n]+)', Path("/etc/os-release").read_text(), re.M)
+            info["os"] = f"{os_name.group(1) if os_name else 'Linux'} (kernel {platform.release()})"
     except Exception:
         pass
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits"],
-                             capture_output=True, text=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+                             capture_output=True, text=True, timeout=10, creationflags=llm.NO_WINDOW).stdout
         name, mem, drv = [x.strip() for x in out.splitlines()[0].split(",")]
         info.update(gpu=name, vram_gb=round(int(mem) / 1024, 1), gpu_driver=drv)
     except Exception:
         try:
             out = subprocess.run(["powershell", "-NoProfile", "-Command",
                                   "(Get-CimInstance Win32_VideoController | Select-Object -First 1).Name"],
-                                 capture_output=True, text=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+                                 capture_output=True, text=True, timeout=15, creationflags=llm.NO_WINDOW).stdout
             info["gpu"] = out.strip() or None
         except Exception:
             pass
@@ -233,12 +239,14 @@ def start_server(cfg: Config, port: int, out_dir: Path, log, own: bool = False,
             return None, url + "/v1", 0.0, True
     except httpx.HTTPError:
         pass
-    exe = next(BIN_DIR.rglob("llama-server.exe"))
+    exe = llm.find_exe("llama-server")
+    if exe is None:
+        raise RuntimeError("Falta llama-server; ejecuta el instalador de nuevo")
     cmd = llm.LlamaServer.args(cfg, exe, port) + (extra or [])
     logf = open(out_dir / "llama-server-bench.log", "w", encoding="utf-8", errors="replace")
     t = time.perf_counter()
     proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=str(exe.parent),
-                            creationflags=subprocess.CREATE_NO_WINDOW)
+                            creationflags=llm.NO_WINDOW, env=llm.server_env(exe))
     url = f"http://127.0.0.1:{port}"
     while True:
         if proc.poll() is not None:
@@ -320,6 +328,17 @@ def bench_llm(cfg: Config, port: int, out_dir: Path, log, own: bool = False, ext
 
 # ------------------------------------------------------------------ visión
 
+def _bold_font(size: int):
+    from PIL import ImageFont
+    if sys.platform == "win32":
+        return ImageFont.truetype(r"C:\Windows\Fonts\segoeuib.ttf", size)
+    try:  # la sans negrita que tenga la distribución (Liberation, DejaVu, Noto…)
+        f = subprocess.run(["fc-match", "-f", "%{file}", "sans:bold"], capture_output=True, text=True, timeout=5).stdout
+        return ImageFont.truetype(f, size)
+    except Exception:
+        return ImageFont.load_default(size)
+
+
 def bench_vision(cfg: Config, log) -> dict:
     from PIL import Image, ImageDraw, ImageFont
     from .vision import VisionServer
@@ -334,7 +353,7 @@ def bench_vision(cfg: Config, log) -> dict:
         img = Image.new("RGB", (640, 360), (250, 250, 250))
         d = ImageDraw.Draw(img)
         d.ellipse((60, 90, 240, 270), fill=(220, 30, 40))
-        d.text((300, 150), "KALMIYA", fill=(10, 10, 10), font=ImageFont.truetype(r"C:\Windows\Fonts\segoeuib.ttf", 64))
+        d.text((300, 150), "KALMIYA", fill=(10, 10, 10), font=_bold_font(64))
         lat, answers = [], []
         for q in ("¿Qué palabra está escrita en la imagen?", "¿De qué color es el círculo?"):
             t = time.perf_counter()

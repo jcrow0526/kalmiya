@@ -109,6 +109,16 @@ class Speaker:
         return played or self._cancelled
 
     def _sapi(self, text: str) -> None:
+        import sys
+        if sys.platform != "win32":
+            import shutil
+            import subprocess
+            # Respaldo en Linux: speech-dispatcher o espeak-ng si están instalados.
+            for cmd in (["spd-say", "-w", "-l", "es", text], ["espeak-ng", "-v", "es-419", text]):
+                if shutil.which(cmd[0]):
+                    subprocess.run(cmd, capture_output=True, timeout=60)
+                    return
+            raise RuntimeError("No hay voz de respaldo (instala espeak-ng)")
         import pyttsx3
         engine = pyttsx3.init()
         for v in engine.getProperty("voices"):

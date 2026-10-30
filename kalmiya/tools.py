@@ -8,6 +8,7 @@ import difflib
 import logging
 import os
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -18,7 +19,7 @@ import webbrowser
 from pathlib import Path
 from typing import Callable
 
-from . import context
+from . import LINUX, context
 from .calendar_store import Calendar
 from .config import DOWNLOADS_DIR, EVENTS_DIR, Config
 
@@ -71,6 +72,9 @@ class Context:
     calendar: "Calendar | None" = None  # calendario de Kalmiya (lo crea la app)
     open_calendar: Callable[[], None] = staticmethod(lambda: None)  # muestra la ventana del calendario
     open_reminders: Callable[[], None] = staticmethod(lambda: None)  # muestra la lista de recordatorios
+    # Acciones que necesitan la pantalla sin el orbe (capturas, apagar…): la app las ejecuta
+    # cuando Kalmiya termina de hablar y lo oculta.
+    later: list[Callable[[], None]] = []
 
 
 ctx = Context()
@@ -120,6 +124,61 @@ def _match(consulta: str, encontrado: str) -> float:
 
 def _active() -> "context.Window | None":
     return ctx.snapshot.activa if ctx.snapshot else None
+
+
+# ---------------------------------------------------------------- plataforma
+# Lo mismo en Windows (keyboard, pyperclip, os.startfile, win32gui) y en Linux (kalmiya/linux/desktop.py).
+
+def _send(combo: str) -> None:
+    if LINUX:
+        from .linux import desktop
+        desktop.send(combo)
+    else:
+        import keyboard
+        keyboard.send(combo)
+
+
+def _clip_get() -> str | None:
+    if LINUX:
+        from .linux import desktop
+        return desktop.clipboard_get()
+    import pyperclip
+    try:
+        return pyperclip.paste()
+    except Exception:
+        return None
+
+
+def _clip_set(texto: str) -> None:
+    if LINUX:
+        from .linux import desktop
+        desktop.clipboard_set(texto)
+    else:
+        import pyperclip
+        pyperclip.copy(texto)
+
+
+def _startfile(target: str) -> None:
+    """Abre un archivo, carpeta o URL con su app predeterminada (OSError si no se puede)."""
+    if LINUX:
+        from .linux import desktop
+        if not desktop.open_uri(str(target)):
+            raise OSError(f"No sé abrir {target}")
+    else:
+        os.startfile(str(target))
+
+
+def _rect(hwnd) -> tuple[int, int, int, int]:
+    if LINUX:
+        from . import screen
+        return screen._rect(hwnd)
+    import win32gui
+    return win32gui.GetWindowRect(hwnd)
+
+
+def _is_proc(w: "context.Window | None", name: str) -> bool:
+    """¿La ventana es de ese programa? ("spotify" = spotify.exe en Windows, clase spotify en Linux)."""
+    return bool(w) and w.proceso.removesuffix(".exe") == name
 
 
 # ---------------------------------------------------------------- conversación
@@ -265,7 +324,7 @@ def reproducir(consulta: str, plataforma: str = "") -> str:
         return "¿Qué canción o video quieres que ponga?"
     act = _active()
     if not plataforma:  # priorizar lo que ya está abierto
-        if act and act.proceso == "spotify.exe":
+        if _is_proc(act, "spotify"):
             plataforma = "spotify"
         elif act and "music.youtube.com" in act.url:
             plataforma = "youtube_music"
@@ -273,7 +332,7 @@ def reproducir(consulta: str, plataforma: str = "") -> str:
             plataforma = "youtube"
     if plataforma == "spotify":
         # La app de Spotify no permite iniciar la reproducción sin su API; abrimos la búsqueda.
-        os.startfile(f"spotify:search:{urllib.parse.quote(consulta)}")
+        _startfile(f"spotify:search:{urllib.parse.quote(consulta)}")
         return f"Busqué {consulta} en Spotify; dale play al primer resultado"
     tab = _youtube_tab()
     if plataforma == "youtube" and tab and tab.youtube_id and act and act.hwnd == tab.hwnd:
@@ -305,6 +364,21 @@ def reproducir(consulta: str, plataforma: str = "") -> str:
 
 def _new_video_title(tab: "context.Window") -> str:
     """Espera a que la pestaña cambie de video y devuelve su título ("" si no cambió)."""
+    if LINUX:
+        # En Wayland la URL se copia de la barra (intrusivo): se espera a que cambie el título
+        # de la ventana y se lee una sola vez.
+        antes = context.window_title(tab.hwnd)
+        for _ in range(25):
+            time.sleep(0.15)
+            if context.window_title(tab.hwnd) != antes:
+                break
+        url = context.browser_url(tab.hwnd)
+        if "watch?v=" not in url or f"v={tab.youtube_id}" in url:
+            return ""
+        try:
+            return _http_json("https://www.youtube.com/oembed", {"url": url, "format": "json"})["title"]
+        except Exception:
+            return "el video"
     for _ in range(25):
         time.sleep(0.15)
         url = context.browser_url(tab.hwnd)
@@ -352,7 +426,6 @@ def _best_sidebar_match(items: list, consulta: str):
        "titulo": ("string", "Palabras del título si el usuario describe cuál ('el de Escocia'); si no, vacío")},
       required=[])
 def youtube_recomendado(posicion: int = 1, titulo: str = "") -> str:
-    import keyboard
     tab = _youtube_tab()
     if not tab or not tab.youtube_id:
         return "Error: no veo ningún video de YouTube abierto"
@@ -367,7 +440,7 @@ def youtube_recomendado(posicion: int = 1, titulo: str = "") -> str:
     if pos == 1:
         # Shift+N = "siguiente video" de YouTube, el primero de *tu* lista de recomendados.
         context.focus(tab.hwnd)
-        keyboard.send("shift+n")
+        _send("shift+n")
         titulo = _new_video_title(tab)
         if titulo:
             return f"Puse {titulo}"
@@ -432,6 +505,38 @@ def _start_menu_shortcuts() -> dict[str, Path]:
     return found
 
 
+_LINUX_ALIASES = {
+    "bloc de notas": "text editor", "notas": "text editor", "editor de texto": "text editor",
+    "calculadora": "calculator", "explorador": "files", "archivos": "files", "explorador de archivos": "files",
+    "navegador": "chromium", "configuración": "settings", "ajustes": "settings", "consola": "terminal",
+    "administrador de tareas": "btop", "monitor del sistema": "btop", "correo": "mail",
+}
+
+
+def _linux_app(key: str) -> dict | None:
+    from .linux import desktop
+    apps = desktop.desktop_apps()
+    key = _LINUX_ALIASES.get(key, key)
+    if key in apps:
+        return apps[key]
+    partial = [k for k in apps if key in k and "uninstall" not in k]
+    return apps[min(partial, key=len)] if partial else None
+
+
+def _abrir_aplicacion_linux(nombre: str, key: str) -> str:
+    from .linux import desktop
+    app = _linux_app(key)
+    if app is not None:
+        desktop.launch(app)
+        return f"Abrí {app['name']}"
+    close = difflib.get_close_matches(key, desktop.desktop_apps(), n=1, cutoff=0.6)
+    if close:
+        app = desktop.desktop_apps()[close[0]]
+        return ask(f"No tengo {nombre}, pero sí {app['name']}. ¿Lo abro?",
+                   lambda: (desktop.launch(app), f"Abrí {app['name']}")[1])
+    return f"Error: no encontré la aplicación {nombre}"
+
+
 def _open_window(nombre: str) -> "context.Window | None":
     """Ventana ya abierta de ese programa, si la hay."""
     key = nombre.lower().strip()
@@ -446,6 +551,10 @@ def _open_window(nombre: str) -> "context.Window | None":
       "Si ya está abierto, lo trae al frente.",
       {"nombre": ("string", "Nombre del programa")})
 def abrir_aplicacion(nombre: str) -> str:
+    if EXTRA_OPEN:  # Omarchy: su terminal, navegador y web apps
+        r = EXTRA_OPEN(nombre)
+        if r is not None:
+            return r
     key = nombre.lower().strip()
     abierta = _open_window(nombre)
     if abierta:  # ya está abierta: traerla al frente en vez de abrir otra
@@ -454,6 +563,8 @@ def abrir_aplicacion(nombre: str) -> str:
     key = re.sub(r"^(mi|el|la)\s+", "", key)
     if key in ("calendario", "agenda"):
         return _abrir_calendario()
+    if LINUX:
+        return _abrir_aplicacion_linux(nombre, key)
     if key in _ALIASES:
         try:
             os.startfile(_ALIASES[key])
@@ -483,7 +594,7 @@ def _abrir_calendario() -> str:
     if ctx.config.calendario == "kalmiya":
         ctx.open_calendar()
         return "Ahí tienes tu calendario"
-    if ctx.config.calendario != "google":
+    if ctx.config.calendario != "google" and not LINUX:
         # Calendario de Windows/Outlook clásico, luego el Outlook nuevo (no registra outlookcal:).
         for uri, nombre in (("outlookcal:", "el calendario"), ("ms-outlook:", "Outlook")):
             try:
@@ -497,7 +608,23 @@ def _abrir_calendario() -> str:
 
 def _whatsapp_window() -> "context.Window | None":
     snap = context.capture(with_url=False)
-    return next((w for w in [snap.activa, *snap.otras] if w and w.proceso.startswith("whatsapp")), None)
+    # Windows: la app (whatsapp.root.exe). Linux: la web app de Omarchy u otra ventana de WhatsApp Web.
+    return next((w for w in [snap.activa, *snap.otras] if w and (w.proceso.startswith("whatsapp")
+                 or (LINUX and "whatsapp" in w.proceso))), None)
+
+
+def _open_whatsapp() -> None:
+    if not LINUX:
+        os.startfile("whatsapp:")
+        return
+    from .linux import desktop
+    app = _linux_app("whatsapp")
+    if app is not None:
+        desktop.launch(app)
+    elif shutil.which("omarchy-launch-webapp"):
+        desktop.launch_cmd("omarchy-launch-webapp https://web.whatsapp.com/")
+    else:
+        raise OSError("WhatsApp no está instalado")
 
 
 @tool("Abre la conversación de un contacto o grupo en la app de WhatsApp de la computadora "
@@ -518,7 +645,7 @@ def _whatsapp_app() -> "context.Window | str":
     w = _whatsapp_window()
     if w is None:  # no está abierto: abrir la app (no la web)
         try:
-            os.startfile("whatsapp:")
+            _open_whatsapp()
         except OSError:
             return "Error: no encontré la app de WhatsApp instalada"
         for _ in range(30):
@@ -533,18 +660,16 @@ def _whatsapp_app() -> "context.Window | str":
 
 
 def _paste(texto: str) -> None:
-    import keyboard
-    import pyperclip
-    previo = pyperclip.paste()
-    pyperclip.copy(texto)
-    keyboard.send("ctrl+v")
+    previo = _clip_get()
+    _clip_set(texto)
+    _send("ctrl+v")
     time.sleep(0.25)
-    pyperclip.copy(previo)
+    if previo is not None:
+        _clip_set(previo)
 
 
 def _whatsapp_open_chat(w: "context.Window", contacto: str) -> str | None:
     """Abre el chat y devuelve su nombre tal como aparece en WhatsApp (None si no está)."""
-    import keyboard
     from . import screen
     time.sleep(0.3)
 
@@ -559,13 +684,13 @@ def _whatsapp_open_chat(w: "context.Window", contacto: str) -> str | None:
         # No está entre los visibles: escribirlo en el buscador de WhatsApp.
         screen.click(buscar.x + 40, buscar.y + buscar.h // 2)
         time.sleep(0.2)
-        keyboard.send("ctrl+a")
+        _send("ctrl+a")
         _paste(contacto)
         time.sleep(1.0)
         nombres, _ = screen.whatsapp_chats(w.hwnd)
         chat = best([n for n in nombres if n.y > buscar.y + 30])
         if chat is None:
-            keyboard.send("esc")
+            _send("esc")
     if chat is None:
         return None
     screen.click(chat.x + 40, chat.y + chat.h // 2)
@@ -576,14 +701,13 @@ def _whatsapp_header_is(w: "context.Window", nombre: str) -> bool:
     """¿El chat abierto (cabecera de la derecha) es el de `nombre`?"""
     from . import screen
     with screen._physical_pixels():
-        top = __import__("win32gui").GetWindowRect(w.hwnd)[1]
+        top = _rect(w.hwnd)[1]
     cabecera = [ln.text for ln in screen.window_lines(w.hwnd, 0.42, 0.85) if ln.y < top + 180]
     return any(_match(nombre, t) >= 0.8 for t in cabecera)
 
 
 def _whatsapp_focus_compose(w: "context.Window") -> None:
     """Clic en el cuadro "Escribe un mensaje" del chat abierto."""
-    import win32gui
     from . import screen
     lines = screen.window_lines(w.hwnd, 0.42, 1.0)
     caja = next((ln for ln in lines if ln.text.lower().startswith("escribe un mensaje")), None)
@@ -591,7 +715,7 @@ def _whatsapp_focus_compose(w: "context.Window") -> None:
         screen.click(caja.x + 30, caja.y + caja.h // 2)
     else:  # ya hay un borrador escrito: el cuadro está abajo, al centro del panel derecho
         with screen._physical_pixels():
-            l, t, r, b = win32gui.GetWindowRect(w.hwnd)
+            l, t, r, b = _rect(w.hwnd)
         screen.click(l + int((r - l) * 0.65), b - 75)
     time.sleep(0.15)
 
@@ -601,7 +725,6 @@ def _whatsapp_focus_compose(w: "context.Window") -> None:
       {"contacto": ("string", "Nombre del contacto o grupo tal como lo dijo el usuario"),
        "mensaje": ("string", "El mensaje exactamente con las palabras que dictó el usuario, sin cambiarlo ni resumirlo")})
 def whatsapp_mensaje(contacto: str, mensaje: str) -> str:
-    import keyboard
     mensaje = mensaje.strip()
     if not mensaje:
         return f"¿Qué le escribo a {contacto}?"
@@ -614,7 +737,7 @@ def whatsapp_mensaje(contacto: str, mensaje: str) -> str:
         return f"No encontré a {contacto} en WhatsApp"
     time.sleep(0.6)
     _whatsapp_focus_compose(w)
-    keyboard.send("ctrl+a")  # sustituir cualquier borrador anterior
+    _send("ctrl+a")  # sustituir cualquier borrador anterior
     _paste(mensaje)
 
     def enviar() -> str:
@@ -623,16 +746,16 @@ def whatsapp_mensaje(contacto: str, mensaje: str) -> str:
         if not _whatsapp_header_is(w, nombre):
             return f"No lo envié: ya no está abierto el chat de {nombre}"
         _whatsapp_focus_compose(w)
-        keyboard.send("end")
-        keyboard.send("enter")
+        _send("end")
+        _send("enter")
         return f"Enviado a {nombre}"
 
     def borrar() -> str:
         context.focus(w.hwnd)
         if _whatsapp_header_is(w, nombre):
             _whatsapp_focus_compose(w)
-            keyboard.send("ctrl+a")
-            keyboard.send("delete")
+            _send("ctrl+a")
+            _send("delete")
         return "Vale, no lo envío"
 
     # Enviar un mensaje en tu nombre siempre pide confirmación (aunque esté desactivado "preguntar si dudo").
@@ -647,6 +770,8 @@ _PROCESS_ALIASES = {"calculadora": "calculatorapp", "bloc de notas": "notepad", 
 @tool("Cierra un programa abierto (Spotify, Chrome, la calculadora, etc.).",
       {"nombre": ("string", "Nombre del programa")})
 def cerrar_aplicacion(nombre: str) -> str:
+    if LINUX:
+        return _cerrar_aplicacion_linux(nombre)
     key = nombre.lower().strip()
     key = _PROCESS_ALIASES.get(key, key).replace(" ", "")
     out = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True,
@@ -670,6 +795,45 @@ def cerrar_aplicacion(nombre: str) -> str:
     return close()
 
 
+def _cerrar_aplicacion_linux(nombre: str) -> str:
+    """Cierra sus ventanas como al pulsar la X (Hyprland); si no tiene ventana, termina el proceso."""
+    import psutil
+
+    from .linux import desktop
+    key = nombre.lower().strip()
+    key = _LINUX_ALIASES.get(key, key)
+    wins = desktop.clients()
+
+    def names(c):
+        cls = (c.get("class") or "").lower()
+        return {cls, context._friendly_name(cls, c.get("title", "")).lower()}
+    match = [c for c in wins if any(key in n or key.replace(" ", "") in n for n in names(c))]
+    seguro = bool(match)
+    if not match:
+        todos = {n: c for c in wins for n in names(c)}
+        close = difflib.get_close_matches(key, todos, n=1, cutoff=0.7)
+        match = [todos[close[0]]] if close else []
+    if not match:
+        procs = [p for p in psutil.process_iter(["name", "username"])
+                 if p.info["username"] == psutil.Process().username() and key.replace(" ", "") in (p.info["name"] or "").lower()]
+        if procs:
+            for p in procs:
+                p.terminate()
+            return f"Cerré {nombre}"
+        return f"Error: no encontré {nombre} abierto"
+
+    def close() -> str:
+        for c in match:
+            desktop.close_window(c["address"])
+        return f"Cerré {nombre}"
+
+    if not seguro:
+        cls = (match[0].get("class") or "").lower()
+        return ask(f"No veo {nombre}, pero sí {context._friendly_name(cls, match[0].get('title', ''))}. ¿Lo cierro?",
+                   close)
+    return close()
+
+
 @tool("Cierra o cambia a una pestaña del navegador nombrándola, aunque no sea la que está a la vista: "
       "'cierra la pestaña de YouTube', 'cierra la de Xataka', 've a la pestaña de WhatsApp Web'.",
       {"accion": ("string", "Qué hacer", ["cerrar", "cambiar"]),
@@ -683,6 +847,12 @@ def pestana(accion: str, nombre: str) -> str:
     if found is None:
         return "Error: no veo ningún navegador abierto"
     hwnd, titulo, s = found
+    if LINUX and s < 0.5:
+        # En Wayland solo se ven las pestañas al frente; las demás, con el buscador de pestañas.
+        cerrar = accion.startswith("cerr")
+        if context.tab_search(nombre, "cerrar" if cerrar else "cambiar") is None:
+            return "Error: no veo ningún navegador abierto"
+        return f"Cerré la pestaña de {nombre}" if cerrar else f"Ahí tienes {nombre}"
     corto = context.clean_title(titulo, False)[:60]
     if s < 0.5:
         return f"No encontré una pestaña de {nombre}"
@@ -723,9 +893,6 @@ def tab_intent(user_text: str) -> tuple[str, dict] | None:
       {"accion": ("string", "Acción", ["cerrar_pestana", "atras", "adelante", "recargar", "pantalla_completa",
                                        "minimizar", "maximizar", "cerrar_ventana"])})
 def controlar_ventana(accion: str) -> str:
-    import keyboard
-    import win32con
-    import win32gui
     w = _active()
     accion = accion.replace("ñ", "n")
     if accion in ("cerrar_pestana", "atras", "adelante", "recargar") and not (w and w.es_navegador):
@@ -733,6 +900,14 @@ def controlar_ventana(accion: str) -> str:
         w = ctx.snapshot.browser() if ctx.snapshot else None
     if w is None:
         return "Error: no hay ninguna ventana activa"
+    if LINUX and accion in ("minimizar", "cerrar_ventana", "maximizar"):
+        from .linux import desktop
+        {"minimizar": desktop.minimize, "cerrar_ventana": desktop.close_window,
+         "maximizar": desktop.fullscreen}[accion](w.hwnd)
+        return {"minimizar": "Minimicé", "cerrar_ventana": "Cerré", "maximizar": "Maximicé"}[accion] + f" {w.app}"
+    if accion in ("minimizar", "cerrar_ventana", "maximizar"):
+        import win32con
+        import win32gui
     if accion == "minimizar":
         win32gui.ShowWindow(w.hwnd, win32con.SW_MINIMIZE)
         return f"Minimicé {w.app}"
@@ -748,7 +923,7 @@ def controlar_ventana(accion: str) -> str:
               "pantalla_completa": "f" if w.youtube_id else "f11"}
     if accion not in teclas:
         return f"Error: acción desconocida {accion}"
-    keyboard.send(teclas[accion])
+    _send(teclas[accion])
     return {"cerrar_pestana": "Cerré la pestaña", "atras": "Regresé", "adelante": "Avancé",
             "recargar": "Recargué", "pantalla_completa": "Pantalla completa"}[accion]
 
@@ -760,13 +935,27 @@ _FOLDERS = {
 }
 
 
-@tool("Abre una carpeta del usuario en el Explorador.",
+def _user_dir(name: str) -> Path:
+    """Carpeta del usuario; en Linux, la de xdg-user-dirs (p. ej. ~/Descargas en un sistema en español)."""
+    xdg = {"Downloads": "DOWNLOAD", "Documents": "DOCUMENTS", "Desktop": "DESKTOP", "Pictures": "PICTURES",
+           "Videos": "VIDEOS", "Music": "MUSIC"}.get(name)
+    if LINUX and xdg:
+        try:
+            out = subprocess.run(["xdg-user-dir", xdg], capture_output=True, text=True, timeout=3).stdout.strip()
+            if out and Path(out).exists() and Path(out) != Path.home():
+                return Path(out)
+        except Exception:
+            pass
+    return Path.home() / name
+
+
+@tool("Abre una carpeta del usuario en el administrador de archivos.",
       {"carpeta": ("string", "Carpeta", ["descargas", "documentos", "escritorio", "imagenes", "videos", "musica"])})
 def abrir_carpeta(carpeta: str) -> str:
-    path = Path.home() / _FOLDERS.get(carpeta.lower(), carpeta)
+    path = _user_dir(_FOLDERS.get(carpeta.lower(), carpeta))
     if not path.exists():
         return f"No existe la carpeta {path}"
-    os.startfile(str(path))
+    _startfile(str(path))
     return f"Abrí la carpeta {carpeta}"
 
 
@@ -869,7 +1058,7 @@ def crear_evento(titulo: str, fecha: str, hora: str = "09:00", duracion_minutos:
     if modo == "outlook" and _outlook_event(titulo, inicio, minutos, descripcion, lugar):
         return f"Guardé {titulo} en Outlook para {cuando}"
     if modo == "ics":
-        os.startfile(str(_ics_event(titulo, inicio, minutos, descripcion, lugar)))
+        _startfile(str(_ics_event(titulo, inicio, minutos, descripcion, lugar)))
         return f"Creé {titulo} para {cuando} y lo abrí en tu app de calendario"
     ctx.calendar.add(titulo, inicio, minutos, lugar, descripcion)
     destino = " y en Google Calendar" if ctx.calendar.google_connected else ""
@@ -918,7 +1107,7 @@ def _download(objetivo: str, solo_audio: bool) -> None:
             title = (info or {}).get("title", "el video")
         ctx.notify(f"Descarga lista: {title}")
         ctx.speak(f"Terminé de descargar {title}")
-        os.startfile(str(DOWNLOADS_DIR))
+        _startfile(str(DOWNLOADS_DIR))
     except Exception as e:
         log.exception("Descarga fallida")
         ctx.notify(f"Error al descargar: {e}")
@@ -963,13 +1152,16 @@ def _system_volume():
        "nivel": ("integer", "Solo con fijar_volumen: porcentaje de 0 a 100")},
       required=["accion"])
 def controlar_medios(accion: str, nivel: int | None = None) -> str:
-    import keyboard
     if nivel is not None and accion in ("subir_volumen", "bajar_volumen"):
         accion = "fijar_volumen"  # "baja el volumen al 50 %": el modelo a veces elige bajar_volumen
     if accion == "fijar_volumen":
         if nivel is None:
             return "Error: ¿a qué porcentaje lo pongo?"
         nivel = max(0, min(100, int(nivel)))
+        if LINUX:
+            from .linux import desktop
+            desktop.set_volume(nivel)
+            return f"Volumen al {nivel} por ciento"
         ev = _system_volume()
         ev.SetMute(0, None)
         ev.SetMasterVolumeLevelScalar(nivel / 100, None)
@@ -982,8 +1174,18 @@ def controlar_medios(accion: str, nivel: int | None = None) -> str:
     key, veces = teclas.get(accion, (None, 0))
     if key is None:
         return f"Acción desconocida: {accion}"
+    if LINUX:  # MPRIS para el reproductor (YouTube en el navegador, Spotify…) y wpctl para el volumen
+        from .linux import desktop
+        if accion in ("pausar_reanudar", "siguiente", "anterior"):
+            if not desktop.media({"pausar_reanudar": "PlayPause", "siguiente": "Next", "anterior": "Previous"}[accion]):
+                return "Error: no hay nada sonando"
+        elif accion == "silenciar":
+            desktop.toggle_mute()
+        else:
+            desktop.change_volume(10 if accion == "subir_volumen" else -10)
+        veces = 0
     for _ in range(veces):
-        keyboard.send(key)
+        _send(key)
         time.sleep(0.02)
     return {"pausar_reanudar": "Listo", "siguiente": "Siguiente", "anterior": "Anterior",
             "subir_volumen": "Subí el volumen", "bajar_volumen": "Bajé el volumen", "silenciar": "Silenciado"}[accion]
@@ -993,28 +1195,33 @@ def controlar_medios(accion: str, nivel: int | None = None) -> str:
 # tecleando en la ventana activa. Para escribir está el atajo de dictado.
 def paste_text(texto: str) -> None:
     """Pega texto vía portapapeles (más rápido y fiable con acentos) y restaura el anterior."""
-    import keyboard
-    import pyperclip
-    try:
-        previo = pyperclip.paste()
-    except Exception:
-        previo = None
-    pyperclip.copy(texto)
+    if LINUX:
+        # wtype escribe directamente con el teclado virtual: vale también en terminales,
+        # donde Ctrl+V no pega.
+        from .linux import desktop
+        desktop.type_text(texto)
+        return
+    previo = _clip_get()
+    _clip_set(texto)
     time.sleep(0.05)
-    keyboard.send("ctrl+v")
+    _send("ctrl+v")
     time.sleep(0.15)
     if previo is not None:
-        threading.Timer(0.5, lambda: pyperclip.copy(previo)).start()
+        threading.Timer(0.5, lambda: _clip_set(previo)).start()
 
 
 @tool("Toma una captura de pantalla y la guarda en Imágenes.")
 def captura_pantalla() -> str:
-    from PIL import ImageGrab
-    folder = Path.home() / "Pictures" / "Kalmiya"
+    folder = _user_dir("Pictures") / "Kalmiya"
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"captura_{dt.datetime.now():%Y%m%d_%H%M%S}.png"
-    ImageGrab.grab(all_screens=True).save(path)
-    os.startfile(str(path))
+    if LINUX:
+        from .linux import desktop
+        desktop.grab().save(path)
+    else:
+        from PIL import ImageGrab
+        ImageGrab.grab(all_screens=True).save(path)
+    _startfile(str(path))
     return "Tomé una captura de pantalla"
 
 
@@ -1189,8 +1396,12 @@ def abrir_noticia(consulta: str = "", posicion: int = 0) -> str:
     return f"Abrí la noticia de {elegida.fuente}: {elegida.titulo}"
 
 
-@tool("Bloquea la sesión de Windows.")
+@tool("Bloquea la sesión (pantalla de bloqueo).")
 def bloquear_pc() -> str:
+    if LINUX:
+        from .linux import desktop
+        desktop.lock_screen()
+        return "PC bloqueada"
     import ctypes
     ctypes.windll.user32.LockWorkStation()
     return "PC bloqueada"
@@ -1219,6 +1430,8 @@ def _frase_pon(user_text: str) -> str:
     return frase.strip()
 
 
+_CIFRA = re.compile(r"\d|\b(cero|diez|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|mitad"
+                    r"|maximo|minimo|tope)\b")
 _RECOMENDADO = re.compile(r"recomend|sugerid|derecha|(siguiente|proximo|otro) video|opcion")
 _DESCARGA = re.compile(r"descarg|\bbaja(r|la|lo|me)?\b|\bb[áa]jame|guarda|\bmp3\b", re.I)
 
@@ -1264,6 +1477,17 @@ def prune(calls: list[dict], user_text: str = "") -> list[dict]:
             resto = [w for w in texto.split() if w not in _NO_TITULO and w not in _ORDINALES]
             if resto and not any(w in _ORDINALES for w in texto.split()):
                 args["titulo"] = " ".join(resto)
+        # "Sube el volumen/brillo" llegaba con nivel=50 o 100 inventado: sin una cifra dicha, no hay nivel.
+        if f["name"] in ("controlar_medios", "brillo") and args.get("nivel") is not None and not _CIFRA.search(texto):
+            args.pop("nivel")
+            if args.get("accion") == "fijar":
+                args["accion"] = "subir" if re.search(r"\b(sube|subele|aumenta|mas)\b", texto) else "bajar"
+        # "Activa el wifi" llegaba sin estado y se alternaba (apagándolo si ya estaba encendido).
+        if f["name"] == "ajuste_rapido" and args.get("estado") in (None, "", "alternar"):
+            if re.search(r"\b(activa|activame|enciende|prende|pon|ponme|conecta|manten|mantener|deja)\b", texto):
+                args["estado"] = "encender"
+            elif re.search(r"\b(desactiva|apaga|quita|quitame|desconecta)\b", texto):
+                args["estado"] = "apagar"
         # El modelo pasa plataforma="youtube" aunque no la digan, y así se ignoraba Spotify abierto.
         if f["name"] == "reproducir" and args.get("plataforma"):
             nombrada = {"youtube_music": "music", "spotify": "spotify"}.get(args["plataforma"], "youtube")
@@ -1276,6 +1500,15 @@ def prune(calls: list[dict], user_text: str = "") -> list[dict]:
     if "reproducir" in names or "youtube_recomendado" in names:
         calls = [c for c in calls if c["function"]["name"] not in ("abrir_web", "buscar_web")]
     return calls
+
+
+# Linux con Omarchy: herramientas para su escritorio (temas, escritorios, ajustes, capturas…).
+EXTRA_RULES = ""
+EXTRA_QUICK: list = []
+EXTRA_OPEN: Callable[[str], str | None] | None = None
+if LINUX and shutil.which("omarchy") and shutil.which("hyprctl"):
+    from .linux import omarchy as _omarchy
+    EXTRA_RULES, EXTRA_QUICK, EXTRA_OPEN = _omarchy.RULES, _omarchy.QUICK, _omarchy.abrir_app
 
 
 def schemas() -> list[dict]:

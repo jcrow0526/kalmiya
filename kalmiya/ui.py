@@ -7,6 +7,7 @@ from typing import Callable
 
 from PIL import Image, ImageDraw
 
+from . import LINUX
 from .config import APP_NAME, DOWNLOADS_DIR, LOG_DIR, Config
 from .glass import GlassBubble
 from .i18n import VOICES, t
@@ -52,6 +53,11 @@ class UI:
 
     # ------------------------------------------------------------ overlay
     def _build_overlay(self) -> None:
+        if LINUX:  # en Wayland el orbe y la burbuja los dibuja otro proceso (kalmiya/linux/overlay.py)
+            from .linux.overlay_client import Overlay
+            self.overlay = Overlay(self.cfg.color_orbe or DEFAULT_COLOR, self.level_fn)
+            self.overlay.start()
+            return
         self.orb = Orb(self.root, self.cfg.color_orbe or DEFAULT_COLOR, self.level_fn)
         # Burbuja de vidrio a la izquierda del orbe.
         self.bubble = GlassBubble(self.root, self.cfg.color_orbe or DEFAULT_COLOR)
@@ -72,21 +78,30 @@ class UI:
         self._listening = listening
         if mode is None:
             mode = "listening" if listening else ("speaking" if hide_after else "thinking")
+        if hide_after:
+            self._hide_job = self.root.after(hide_after, self._hide)
+        if LINUX:
+            self.overlay.status(title, body, mode)
+            return
         self.orb.show(mode)
         if title or body:
             self._place_bubble(title, body)
         else:
             self.bubble.hide()
-        if hide_after:
-            self._hide_job = self.root.after(hide_after, self._hide)
 
     def _hide(self) -> None:
         self._listening = False
+        if LINUX:
+            self.overlay.hide()
+            return
         self.bubble.hide()
         self.orb.hide()
 
     def set_color(self, color: str) -> None:
         def apply():
+            if LINUX:
+                self.overlay.set_color(color)
+                return
             self.orb.set_color(color)
             self.bubble.accent = color
         self.post(apply)
@@ -113,6 +128,8 @@ class UI:
 
     # ------------------------------------------------------------ bandeja
     def start_tray(self) -> None:
+        if LINUX:  # icono en la barra (StatusNotifier) en vez de una ventana X11
+            os.environ.setdefault("PYSTRAY_BACKEND", "appindicator")
         import pystray
         item = pystray.MenuItem
         menu = pystray.Menu(
@@ -122,14 +139,18 @@ class UI:
             item(t("tray_settings"), lambda: self.post(self.on_settings)),
             item(t("tray_new"), lambda: self.on_reset()),
             item(t("tray_welcome"), lambda: self.post(self.on_welcome)),
-            item(t("tray_downloads"), lambda: os.startfile(str(DOWNLOADS_DIR)) if DOWNLOADS_DIR.exists() else None),
-            item(t("tray_logs"), lambda: os.startfile(str(LOG_DIR))),
+            item(t("tray_downloads"), lambda: _open(DOWNLOADS_DIR) if DOWNLOADS_DIR.exists() else None),
+            item(t("tray_logs"), lambda: _open(LOG_DIR)),
             item(t("tray_bench"), lambda: self.on_benchmark()),
             pystray.Menu.SEPARATOR,
             item(t("tray_quit"), lambda: self.post(self._quit)),
         )
         self.tray = pystray.Icon(APP_NAME, make_icon(self.cfg.color_orbe), APP_NAME, menu)
-        self.tray.run_detached()
+        if LINUX:  # AppIndicator necesita su propio bucle de GLib; Tk ocupa el hilo principal
+            import threading
+            threading.Thread(target=self.tray.run, daemon=True).start()
+        else:
+            self.tray.run_detached()
 
     def set_tray_color(self, color: str) -> None:
         try:
@@ -138,6 +159,10 @@ class UI:
             pass
 
     def notify(self, msg: str) -> None:
+        if LINUX:  # el icono de AppIndicator no muestra globos: notificación del escritorio
+            from .linux import desktop
+            desktop.notify(APP_NAME, msg)
+            return
         try:
             self.tray.notify(msg, APP_NAME)
         except Exception:
@@ -149,5 +174,15 @@ class UI:
         except Exception:
             pass
         self.on_quit()
+        if LINUX:
+            self.overlay.stop()
         self.root.quit()
+
+
+def _open(path) -> None:
+    if LINUX:
+        from .linux import desktop
+        desktop.open_uri(str(path))
+    else:
+        os.startfile(str(path))
 

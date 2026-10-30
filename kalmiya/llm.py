@@ -2,10 +2,13 @@
 import datetime as dt
 import json
 import logging
+import os
 import re
 import subprocess
+import sys
 import time
 import uuid
+from pathlib import Path
 
 import httpx
 
@@ -16,11 +19,8 @@ log = logging.getLogger(__name__)
 
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
-SYSTEM_PROMPT = """Eres Kalmiya, una asistente de voz que controla la computadora Windows del usuario.
-Fecha y hora actual: {ahora} ({dia}).
-Próximos días: {semana}.
-Lo que el usuario tiene abierto ahora:
-{contexto}
+SYSTEM_PROMPT = """Eres Kalmiya, una asistente de voz que controla la computadora {sistema} del usuario.
+Justo antes del mensaje del usuario recibes un bloque [Contexto] con la fecha, la hora, los próximos días y lo que tiene abierto ahora; úsalo, pero no lo repitas.
 Reglas:
 - Prioriza lo que el usuario tiene abierto: "esto", "este video", "esta pestaña" se refieren a la ventana activa.
 - "El primer/segundo recomendado", "el video de la derecha", "el siguiente video" usan youtube_recomendado ("el siguiente video" es la posición 1).
@@ -111,7 +111,7 @@ def quick_route(text: str) -> tuple[str, dict] | None:
         pregunta = m["m"].strip(" .?¿")
         return "whatsapp_mensaje", {"contacto": m["c"].strip(" ,"), "mensaje": f"¿{pregunta[:1].upper()}{pregunta[1:]}?"}
     t = " ".join(tools._norm(text))
-    for rx, name, args in _QUICK:
+    for rx, name, args in _QUICK + tools.EXTRA_QUICK:
         m = rx.search(t)
         if m:
             if callable(args):
@@ -136,6 +136,36 @@ def yes_no(text: str) -> bool | None:
     return None
 
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # solo existe en Windows
+
+
+def find_exe(name: str) -> Path | None:
+    """Binario descargado por el instalador en bin/ ("llama-server" o "llama-server.exe")."""
+    exe = name + ".exe" if sys.platform == "win32" else name
+    for p in sorted(BIN_DIR.rglob(exe)):
+        if p.is_file() and (sys.platform == "win32" or os.access(p, os.X_OK)):
+            return p
+    return None
+
+
+def server_env(exe: Path) -> dict:
+    """En Linux las .so de llama.cpp van junto al binario."""
+    env = dict(os.environ)
+    if sys.platform != "win32":
+        env["LD_LIBRARY_PATH"] = str(exe.parent) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+    return env
+
+
+# Sin "pensar" en voz baja: LM Studio y otros servidores externos no reciben --chat-template-kwargs.
+NO_THINKING = {"chat_template_kwargs": {"enable_thinking": False}, "reasoning_effort": "none"}
+
+
+def gpu_layers(n: int) -> list[str]:
+    """99 = "todas las que quepan": se deja que llama.cpp ajuste las capas a la VRAM libre
+    (con -ngl explícito no lo hace y falla si la GPU está ocupada por otro modelo)."""
+    return [] if n >= 99 else ["-ngl", str(n)]
+
+
 class LlamaServer:
     """Arranca y supervisa llama-server.exe con el GGUF de LFM3."""
 
@@ -145,11 +175,13 @@ class LlamaServer:
         self.base_url = cfg.llm_url_externa.rstrip("/") or f"http://127.0.0.1:{cfg.llm_puerto}/v1"
 
     @staticmethod
-    def args(cfg: Config, exe, port: int) -> list[str]:
+    def args(cfg: Config, exe, port: int, layers: list[str] | None = None) -> list[str]:
         """Comando de llama-server (también lo usa el benchmark, para medir lo mismo que se ejecuta)."""
+        if layers is None:
+            layers = gpu_layers(cfg.llm_gpu_capas)
         return [
             str(exe), "-m", str(MODELS_DIR / cfg.llm_gguf), "--port", str(port), "--host", "127.0.0.1",
-            "-c", str(cfg.llm_contexto), "-ngl", str(cfg.llm_gpu_capas),
+            "-c", str(cfg.llm_contexto), *layers,
             "--jinja", "--temp", "0.1", "--top-k", "50", "--repeat-penalty", "1.1",
             "--chat-template-kwargs", '{"enable_thinking": false}',
         ]
@@ -157,28 +189,47 @@ class LlamaServer:
     def start(self, timeout: float = 120) -> None:
         if self.cfg.llm_url_externa:
             return  # el usuario usa Ollama / LM Studio / otro servidor
-        exe = next(BIN_DIR.rglob("llama-server.exe"), None)
+        exe = find_exe("llama-server")
         model = MODELS_DIR / self.cfg.llm_gguf
         if exe is None or not model.exists():
             raise RuntimeError("Falta llama-server o el modelo LFM3. Ejecuta el instalador de nuevo.")
-        cmd = self.args(self.cfg, exe, self.cfg.llm_puerto)
+        try:
+            self._launch(exe, gpu_layers(self.cfg.llm_gpu_capas), timeout)
+        except RuntimeError:
+            if self.cfg.llm_gpu_capas == 0:
+                raise
+            # La GPU puede estar ocupada por otro modelo (LM Studio, un juego…): mejor en CPU que nada.
+            log.warning("LFM3 no cabe en la GPU; usando la CPU (revisa logs/llama-server.log)")
+            self.stop()
+            self._launch(exe, ["-ngl", "0", "--device", "none"], timeout)
+
+    def _launch(self, exe: Path, layers: list[str], timeout: float) -> None:
+        cmd = self.args(self.cfg, exe, self.cfg.llm_puerto, layers)
         log.info("Iniciando: %s", " ".join(cmd))
         logf = open(LOG_DIR / "llama-server.log", "w", encoding="utf-8", errors="replace")
         self.proc = subprocess.Popen(
             cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=str(exe.parent),
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=NO_WINDOW, env=server_env(exe),
         )
+        url = f"http://127.0.0.1:{self.cfg.llm_puerto}"
         deadline = time.time() + timeout
         while time.time() < deadline:
             if self.proc.poll() is not None:
                 raise RuntimeError("llama-server se cerró; revisa logs/llama-server.log")
             try:
-                if httpx.get(f"http://127.0.0.1:{self.cfg.llm_puerto}/health", timeout=1).status_code == 200:
-                    return
+                if httpx.get(f"{url}/health", timeout=1).status_code == 200:
+                    break
             except httpx.HTTPError:
                 pass
             time.sleep(0.5)
-        raise RuntimeError("llama-server no respondió a tiempo")
+        else:
+            raise RuntimeError("llama-server no respondió a tiempo")
+        # Una respuesta de prueba: sin VRAM suficiente el servidor arranca y se cae al primer cálculo.
+        try:
+            httpx.post(f"{url}/v1/chat/completions", timeout=60, json={
+                "messages": [{"role": "user", "content": "hola"}], "max_tokens": 1}).raise_for_status()
+        except httpx.HTTPError as e:
+            raise RuntimeError(f"llama-server falló al responder: {e}") from e
 
     def stop(self) -> None:
         if self.proc and self.proc.poll() is None:
@@ -254,19 +305,30 @@ class Agent:
         self.pending = None  # acción que espera confirmación (ver tools.ask)
         self.asked = False  # la última respuesta fue una pregunta
 
-    def _system(self, contexto: str) -> dict:
+    def _system(self) -> dict:
+        # Fijo: llama-server reutiliza de su caché el sistema + los ~3400 tokens de herramientas.
+        # Con la hora o la ventana activa aquí, cada orden recalculaba todo (~6 s en una GTX 1660).
+        sistema = "Windows" if sys.platform == "win32" else ("Linux (Omarchy)" if tools.EXTRA_RULES else "Linux")
+        return {"role": "system", "content": SYSTEM_PROMPT.format(sistema=sistema) + tools.EXTRA_RULES}
+
+    @staticmethod
+    def _context(contexto: str) -> dict:
+        """Fecha, hora y ventana activa en un mensaje de sistema aparte, justo antes del turno actual.
+        Dentro del mensaje del usuario, el modelo tomaba el título de la ventana como lo que pedía
+        ("cierra esta pestaña" -> cerrar la pestaña "Descargas")."""
         now = dt.datetime.now()
         # El modelo pequeño falla con aritmética de fechas ("el viernes"): se la damos hecha.
         dias = [now + dt.timedelta(days=i) for i in range(1, 8)]
         semana = ", ".join(
             ("mañana " if i == 0 else "") + f"{DIAS[d.weekday()]} {d:%Y-%m-%d}" for i, d in enumerate(dias))
-        return {"role": "system", "content": SYSTEM_PROMPT.format(
-            ahora=now.strftime("%Y-%m-%d %H:%M"), dia=DIAS[now.weekday()], semana=semana,
-            contexto=contexto or "(desconocido)")}
+        bloque = (f"[Contexto]\nFecha y hora actual: {now:%Y-%m-%d %H:%M} ({DIAS[now.weekday()]}).\n"
+                  f"Próximos días: {semana}.\nLo que el usuario tiene abierto ahora:\n{contexto or '(desconocido)'}\n"
+                  f"[Fin del contexto]")
+        return {"role": "system", "content": bloque}
 
     def _payload(self, messages: list[dict]) -> dict:
         return {"model": "lfm3", "messages": messages, "tools": tools.schemas(),
-                "temperature": 0.1, "top_k": 50, "repeat_penalty": 1.1, "max_tokens": 512}
+                "temperature": 0.1, "top_k": 50, "repeat_penalty": 1.1, "max_tokens": 512, **NO_THINKING}
 
     def _chat(self, messages: list[dict]) -> dict:
         r = self.client.post("/chat/completions", json=self._payload(messages))
@@ -283,7 +345,7 @@ class Agent:
     def to_english(self, text: str) -> str:
         try:
             r = self.client.post("/chat/completions", json={
-                "model": "lfm3", "temperature": 0.1, "max_tokens": 300, "messages": [
+                "model": "lfm3", "temperature": 0.1, "max_tokens": 300, **NO_THINKING, "messages": [
                     {"role": "system", "content": "Translate the text to natural, friendly English. Keep names, "
                                                   "song and video titles unchanged. Output only the translation."},
                     {"role": "user", "content": text}]})
@@ -335,7 +397,7 @@ class Agent:
                 self.pending, tools.ctx.pending = tools.ctx.pending, None
             return result
         for _ in range(self.max_steps):
-            msg = self._chat([self._system(contexto), *self.history, *turn])
+            msg = self._chat([self._system(), *self.history, self._context(contexto), *turn])
             content = strip_think(msg.get("content") or "")
             calls = msg.get("tool_calls") or []
             if not calls:

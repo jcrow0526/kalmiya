@@ -1,4 +1,5 @@
 """Ventana del calendario de Kalmiya: vista de mes, eventos del día y conexión con Google."""
+import sys
 import calendar as pycal
 import datetime as dt
 import threading
@@ -11,7 +12,7 @@ from .dpi import px
 
 BG, PANEL, CELL, CELL_HOVER, FG, MUTED, LINE = "#101114", "#17181d", "#1c1e24", "#24262e", "#f2f2f5", "#8e909c", "#2a2c34"
 DIM_FG = "#6b6d78"
-FONT = "Segoe UI"
+FONT = "Segoe UI" if sys.platform == "win32" else "Noto Sans"
 
 GOOGLE_HELP = (
     "Para conectar Google Calendar necesitas un archivo de credenciales (una sola vez):\n\n"

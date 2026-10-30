@@ -1,5 +1,9 @@
 """Grabación de micrófono y reproducción de audio."""
+import json
 import logging
+import os
+import subprocess
+import sys
 import threading
 
 import numpy as np
@@ -85,9 +89,36 @@ class Ducker:
             if s.ProcessId not in (0, me):
                 yield s
 
+    @staticmethod
+    def _pactl_inputs() -> list[dict]:
+        """Flujos de audio de las demás apps (PipeWire/PulseAudio) con su volumen actual (0-1)."""
+        r = subprocess.run(["pactl", "-f", "json", "list", "sink-inputs"], capture_output=True, text=True, timeout=3)
+        me = str(os.getpid())
+        out = []
+        for si in json.loads(r.stdout or "[]"):
+            if si.get("properties", {}).get("application.process.id") == me:
+                continue
+            vols = [v.get("value_percent", "100%") for v in si.get("volume", {}).values()]
+            cur = max((float(v.rstrip("%")) for v in vols), default=100.0) / 100
+            out.append({"id": str(si["index"]), "volume": cur})
+        return out
+
+    @staticmethod
+    def _pactl_set(sink_input: str, level: float) -> None:
+        subprocess.run(["pactl", "set-sink-input-volume", sink_input, f"{round(level * 100)}%"],
+                       capture_output=True, timeout=3)
+
     def duck(self) -> None:
         with self._lock:
             if self._saved:
+                return
+            if sys.platform != "win32":
+                try:
+                    for si in self._pactl_inputs():
+                        self._saved[si["id"]] = si["volume"]
+                        self._pactl_set(si["id"], si["volume"] * self.level)
+                except Exception as e:
+                    logging.getLogger(__name__).warning("No pude bajar el volumen: %s", e)
                 return
             try:
                 for s in self._sessions():
@@ -101,6 +132,14 @@ class Ducker:
     def restore(self) -> None:
         with self._lock:
             if not self._saved:
+                return
+            if sys.platform != "win32":
+                for sid, cur in self._saved.items():
+                    try:
+                        self._pactl_set(sid, cur)
+                    except Exception as e:
+                        logging.getLogger(__name__).warning("No pude restaurar el volumen: %s", e)
+                self._saved.clear()
                 return
             try:
                 for s in self._sessions():

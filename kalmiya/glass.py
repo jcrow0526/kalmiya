@@ -4,15 +4,28 @@ con borde brillante, sombra suave y texto nítido.
 El fondo se toma con una captura de la zona (que no incluye las ventanas por capas de
 Kalmiya), se desenfoca y se tiñe; así no depende de efectos de Windows que Tk no soporta.
 """
+import subprocess
+import sys
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab
 
 from .orb import LayeredWindow, hex_rgb
 
 FONTS = r"C:\Windows\Fonts"
+# En Linux, la misma idea que Segoe UI / Segoe UI Semibold, con lo que haya instalado (fontconfig).
+_LINUX_FONTS = {"seguisb.ttf": "Inter,Noto Sans,Cantarell,Liberation Sans:semibold",
+                "segoeui.ttf": "Inter,Noto Sans,Cantarell,Liberation Sans:regular"}
 
 
 def _font(name: str, size: int) -> ImageFont.FreeTypeFont:
+    if sys.platform != "win32":
+        try:
+            path = subprocess.run(["fc-match", "-f", "%{file}", _LINUX_FONTS.get(name, name)],
+                                  capture_output=True, text=True, timeout=3).stdout
+            return ImageFont.truetype(path, size)
+        except Exception:
+            return ImageFont.load_default(size)
     for f in (name, "segoeui.ttf", "arial.ttf"):
         try:
             return ImageFont.truetype(f"{FONTS}\\{f}", size)
@@ -66,7 +79,7 @@ class GlassBubble:
 
         # 1) Fondo: lo que hay detrás, muy desenfocado y aclarado (vidrio esmerilado).
         try:
-            bg = ImageGrab.grab(bbox=(x0, y0, x0 + W, y0 + H)).convert("RGB")
+            bg = self._background((x0, y0, x0 + W, y0 + H)).convert("RGB")
         except Exception:
             bg = Image.new("RGB", (W, H), (40, 40, 48))
         frost = bg.filter(ImageFilter.GaussianBlur(22 * s))
@@ -133,6 +146,10 @@ class GlassBubble:
         out[..., 3] = alpha * 255
         self.win.show(out, x0, y0)
         self.visible = True
+
+    def _background(self, bbox: tuple[int, int, int, int]) -> Image.Image:
+        """Lo que hay detrás de la burbuja (píxeles reales de pantalla)."""
+        return ImageGrab.grab(bbox=bbox)
 
     def hide(self) -> None:
         self.win.hide()

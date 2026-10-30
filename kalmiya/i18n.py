@@ -23,6 +23,9 @@ T = {
     "still_preparing": ("Kalmiya aún se está preparando…", "Kalmiya is still getting ready…"),
     "failed_start": ("Kalmiya no pudo iniciar", "Kalmiya couldn't start"),
     "error": ("Algo salió mal", "Something went wrong"),
+    "no_mic": ("No encuentro el micrófono", "I can't find the microphone"),
+    "no_mic_body": ("Conecta uno o elígelo en Configuración → Voz e idioma",
+                    "Plug one in or choose it in Settings → Voice and language"),
     "say_again": ("Vale, dímelo otra vez.", "Okay, say it again."),
     "did_you_say": ("No te entendí bien. ¿Dijiste: {x}?", "I didn't quite catch that. Did you say: {x}?"),
     "listen_answer": ("Te escucho…", "I'm listening…"),
@@ -82,6 +85,16 @@ T = {
     "tool_captura_pantalla": ("Capturando", "Taking a screenshot"),
     "tool_recordatorio": ("Programando recordatorio", "Setting a reminder"),
     "tool_bloquear_pc": ("Bloqueando", "Locking"),
+    "tool_escritorio": ("Moviendo ventanas", "Arranging windows"),
+    "tool_apariencia": ("Cambiando la apariencia", "Changing the look"),
+    "tool_ajuste_rapido": ("Ajustando", "Adjusting"),
+    "tool_brillo": ("Ajustando el brillo", "Adjusting brightness"),
+    "tool_grabar_pantalla": ("Grabación de pantalla", "Screen recording"),
+    "tool_abrir_panel": ("Abriendo", "Opening"),
+    "tool_notificaciones": ("Notificaciones", "Notifications"),
+    "tool_energia": ("Energía", "Power"),
+    "tool_actualizar_sistema": ("Buscando actualizaciones", "Checking for updates"),
+    "tool_estado_equipo": ("Revisando el equipo", "Checking the computer"),
 }
 
 

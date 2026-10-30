@@ -1,0 +1,15 @@
+faster-whisper>=1.2
+piper-tts>=1.3
+sounddevice>=0.5
+numpy
+pystray>=0.19
+pillow
+httpx
+yt-dlp
+imageio-ffmpeg
+psutil
+google-auth-oauthlib
+# Orbe y burbuja (capa de Wayland con gtk4-layer-shell) e icono de bandeja (AppIndicator)
+PyGObject
+pycairo
+evdev

@@ -15,10 +15,29 @@ def _add_cuda_dlls() -> None:
     import os
     import sys
 
+    if sys.platform != "win32":
+        return  # en Linux el lanzador (kalmiya.sh) ya pone las libs de nvidia-* en LD_LIBRARY_PATH
     root = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
     for bin_dir in root.glob("*/bin"):
         os.add_dll_directory(str(bin_dir))
         os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
+
+
+def _cuda_compute_type() -> str:
+    """float16 solo rinde con tensor cores (RTX). En una GTX 1660, large-v3-turbo tardaba 4.5 s por
+    frase en float16 y 1.1 s en int8_float16, con el mismo texto y menos VRAM."""
+    import subprocess
+
+    from .llm import NO_WINDOW
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=name,compute_cap", "--format=csv,noheader"],
+                             capture_output=True, text=True, timeout=10, creationflags=NO_WINDOW).stdout
+        name, cap = [x.strip() for x in out.splitlines()[0].split(",")]
+        if "GTX" in name.upper() or float(cap) < 7.0:
+            return "int8_float16"
+    except Exception:
+        pass
+    return "float16"
 
 
 class Transcriber:
@@ -38,24 +57,37 @@ class Transcriber:
         try:
             import ctranslate2
             if ctranslate2.get_cuda_device_count() > 0:
-                device, compute = "cuda", "float16"
+                device, compute = "cuda", _cuda_compute_type()
         except Exception:
             pass
         root = str(MODELS_DIR / "whisper")
         log.info("Cargando Whisper %s en %s", self.model_name, device)
-        try:  # sin internet si el modelo ya está descargado
-            self._model = WhisperModel(self.model_name, device=device, compute_type=compute,
-                                       download_root=root, local_files_only=True)
+        def create(device: str, compute: str):
+            try:  # sin internet si el modelo ya está descargado
+                return WhisperModel(self.model_name, device=device, compute_type=compute,
+                                    download_root=root, local_files_only=True)
+            except Exception as e:
+                if "out of memory" in str(e).lower():
+                    raise
+                if "incomplete" in str(e) or "failed to read" in str(e):
+                    # Archivos dañados (p. ej. enlaces de la caché de Hugging Face rotos al copiar la carpeta):
+                    # se borra la copia de ese modelo y se descarga de nuevo.
+                    import shutil
+                    log.warning("Modelo Whisper dañado (%s); se descargará de nuevo", e)
+                    for d in Path(root).glob("models--*"):
+                        if self.model_name.replace("/", "--").lower() in d.name.lower():
+                            shutil.rmtree(d, ignore_errors=True)
+                return WhisperModel(self.model_name, device=device, compute_type=compute, download_root=root)
+
+        try:
+            self._model = create(device, compute)
         except Exception as e:
-            if "incomplete" in str(e) or "failed to read" in str(e):
-                # Archivos dañados (p. ej. enlaces de la caché de Hugging Face rotos al copiar la carpeta):
-                # se borra la copia de ese modelo y se descarga de nuevo.
-                import shutil
-                log.warning("Modelo Whisper dañado (%s); se descargará de nuevo", e)
-                for d in Path(root).glob("models--*"):
-                    if self.model_name.replace("/", "--").lower() in d.name.lower():
-                        shutil.rmtree(d, ignore_errors=True)
-            self._model = WhisperModel(self.model_name, device=device, compute_type=compute, download_root=root)
+            if device != "cuda":
+                raise
+            # La GPU puede estar llena (otro modelo cargado, p. ej. LM Studio): mejor lento que nada.
+            log.warning("Whisper no cabe en la GPU (%s); usando CPU", e)
+            device = "cpu"
+            self._model = create("cpu", "int8")
         if device == "cuda":
             # Hay GPU NVIDIA pero puede faltar cuBLAS/cuDNN: probar y, si falla, usar CPU.
             try:
@@ -144,9 +176,10 @@ class NemoTranscriber:
 
         from .config import BIN_DIR, LOG_DIR
 
-        exe = next(BIN_DIR.rglob("nemo-speech.exe"), None)
+        from .llm import find_exe, NO_WINDOW
+        exe = find_exe("nemo-speech")
         if exe is None:
-            raise RuntimeError("Falta nemo-speech.exe; reinstala con -Stt nemotron")
+            raise RuntimeError("Falta nemo-speech; reinstala con la opción de Nemotron")
         model = self.model
         if model.lower().endswith(".gguf") and not Path(model).is_absolute():
             model = str(MODELS_DIR / "nemotron" / model)
@@ -155,7 +188,7 @@ class NemoTranscriber:
         log.info("Iniciando: %s", " ".join(cmd))
         logf = open(LOG_DIR / "nemo-speech.log", "w", encoding="utf-8", errors="replace")
         self.proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, cwd=str(exe.parent),
-                                     creationflags=subprocess.CREATE_NO_WINDOW)
+                                     creationflags=NO_WINDOW)
         client = httpx.Client(base_url=f"http://127.0.0.1:{self.port}", timeout=120)
         deadline = time.time() + timeout  # la primera vez puede descargar el modelo
         while time.time() < deadline:

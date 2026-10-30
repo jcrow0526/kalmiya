@@ -1,4 +1,5 @@
 """Ventana de configuración: menú lateral, tarjetas y controles propios en tema oscuro."""
+import sys
 import threading
 import time
 import tkinter as tk
@@ -15,7 +16,7 @@ from .orb import OrbRenderer
 
 BG, SIDE, CARD, FIELD, LINE = "#0f1013", "#14151a", "#1a1b21", "#23252d", "#2c2e37"
 FG, MUTED, DIM = "#f2f3f6", "#9a9ca8", "#6b6d78"
-FONT = "Segoe UI"
+FONT = "Segoe UI" if sys.platform == "win32" else "Noto Sans"
 COLORES = {"Lima": "#7CFF2B", "Cian": "#2BD9FF", "Azul": "#4C7DFF", "Violeta": "#B04CFF",
            "Rosa": "#FF4CA8", "Ámbar": "#FFB02B"}
 
@@ -205,6 +206,11 @@ class SettingsWindow:
 
     def _hotkey(self, parent, key: str) -> None:
         e = self._entry(parent, key, width=18)
+
+        if sys.platform != "win32":
+            # En Wayland no se puede leer el teclado global: se escribe ("ctrl+alt+space") y,
+            # al guardar, Kalmiya lo registra en Hyprland (~/.config/hypr/kalmiya.lua).
+            return
 
         def record():
             self.status.config(text="Pulsa la combinación de teclas…")
@@ -414,7 +420,8 @@ class SettingsWindow:
         c = self._card("Diagnóstico")
         import os
         self._button(self._row(c, "Registros", "Lo que Kalmiya oyó e hizo"), "Abrir carpeta",
-                     lambda: os.startfile(str(LOG_DIR)), small=True).pack()
+                     lambda: (os.startfile(str(LOG_DIR)) if sys.platform == "win32"
+                              else __import__("subprocess").Popen(["xdg-open", str(LOG_DIR)])), small=True).pack()
 
     # ------------------------------------------------------------ guardar
     def save(self) -> None:

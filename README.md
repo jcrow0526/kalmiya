@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/assets/icon.png" width="110" alt="Kalmiya"></p>
 <h1 align="center">Kalmiya</h1>
 <p align="center">
-  <b>Asistente de voz para Windows, 100 % local.</b><br>
+  <b>Asistente de voz para Windows y Linux, 100 % local.</b><br>
   <i>A local, private voice assistant for Windows — Spanish &amp; English.</i><br><br>
   <a href="docs/">Landing page</a> ·
   <a href="https://github.com/jcrow0526/kalmiya/releases/latest/download/KalmiyaSetup.exe">Descargar para Windows</a> ·
@@ -38,6 +38,55 @@ modelos). Para quitarlo: menú Inicio → *Desinstalar Kalmiya*. En consola:
 
 La primera vez, Kalmiya pregunta el idioma (español o inglés), deja escuchar las voces y presenta
 lo que puede hacer (icono → *Ver presentación* para repetirla).
+
+### Linux (Wayland + Hyprland)
+
+```
+./Instalar.sh            # opciones: --gpu cuda|vulkan|cpu, --quant Q8_0, --no-vision, --no-startup
+```
+
+Probado en [Omarchy](https://omarchy.org) (Arch + Hyprland con configuración en Lua). El instalador
+([installer/install.sh](installer/install.sh)) instala lo que falte con pacman (`wtype`, `wl-clipboard`,
+`grim`, `slurp`, `tesseract`, `gtk4-layer-shell`, `libayatana-appindicator`), crea un Python 3.12 aislado
+con `uv`, descarga `llama-server` (CUDA 12 si hay NVIDIA), los mismos modelos y el OCR de Tesseract en
+español, y deja todo en `~/.local/share/kalmiya`. Para quitarlo: *Desinstalar Kalmiya* en el lanzador
+o `bash ~/.local/share/kalmiya/app/uninstall.sh`.
+
+Qué cambia respecto a Windows ([kalmiya/linux/](kalmiya/linux/)):
+
+- **Atajos:** Wayland no deja a una app leer el teclado global, así que son binds de Hyprland.
+  Kalmiya escribe `~/.config/hypr/kalmiya.lua` (cargado desde `hyprland.lua`) y los binds le avisan
+  con `kalmiya-ctl` por un socket local. Para cambiarlos: *Configuración → General* (se escriben a mano,
+  p. ej. `ctrl+alt+space`).
+- **Orbe y burbuja:** un proceso con GTK 4 y gtk4-layer-shell los muestra como capa *overlay* que no
+  recibe clics ni roba el foco; se dibujan con el mismo código que en Windows.
+- **Ventanas y teclas:** `hyprctl` (ventana activa, enfocar, cerrar, pantalla completa), `wtype` para
+  teclas y dictado (escribe directamente, también en terminales) y un ratón virtual (uinput) para los
+  clics sobre los recomendados de YouTube o la lista de WhatsApp Web.
+- **URL del navegador:** sin UI Automation, se copia de la barra (Ctrl+L, Ctrl+C, Esc) al soltar el
+  atajo, solo si el navegador es la ventana activa. Las pestañas que no están a la vista se buscan con
+  el buscador de pestañas del navegador (Ctrl+Shift+A en Chromium).
+- **Medios y volumen:** MPRIS (`playerctl` o `busctl`) y `wpctl`; bajar las demás apps, con `pactl`.
+- **WhatsApp:** la web app de WhatsApp (la de Omarchy u otra ventana de WhatsApp Web).
+- **Si la GPU está llena** (otro modelo cargado en LM Studio, por ejemplo), Whisper y LFM3 pasan solos
+  a la CPU: funciona, pero tarda varios segundos por orden.
+
+**Con Omarchy** Kalmiya maneja también el escritorio ([kalmiya/linux/omarchy.py](kalmiya/linux/omarchy.py)):
+
+| Di… | Hace |
+|---|---|
+| "Ve al escritorio 3", "manda esta ventana al 2", "flota esta ventana", "cierra todas las ventanas" | Escritorios y ventanas de Hyprland |
+| "Cambia el tema a Tokyo Night", "pon un tema claro", "pon otro tema", "cambia el fondo", "quita la barra" | Temas, fondos, transparencia, márgenes y barra |
+| "Activa la luz nocturna", "modo no molestar", "mantén la pantalla encendida", "apaga el Bluetooth", "modo ahorro" | Ajustes rápidos |
+| "Sube el brillo", "brillo al 40 por ciento" | Brillo (también monitores externos por DDC) |
+| "Haz una captura de una zona", "copia el texto de la pantalla", "copia un color", "lee el código QR" | Capturas, OCR y selector de color de Omarchy |
+| "Graba la pantalla con audio", "detén la grabación" | Grabación de pantalla |
+| "Abre el menú", "abre el wifi", "enséñame los atajos", "abre el portapapeles", "administrador de tareas" | Menús y paneles de Omarchy |
+| "Borra las notificaciones" | Notificaciones |
+| "¿Cuánta memoria uso?", "¿cuánto disco me queda?", "¿qué IP tengo?", "¿hay actualizaciones?" | Estado del equipo |
+| "Actualiza el sistema", "apaga / reinicia / suspende la computadora" | Siempre pregunta antes |
+
+Órdenes desde la terminal: `kalmiya settings`, `kalmiya calendar`, `kalmiya reminders`, `kalmiya quit`.
 
 ### Landing page
 
