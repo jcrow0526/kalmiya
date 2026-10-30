@@ -7,6 +7,13 @@ import sounddevice as sd
 
 SAMPLE_RATE = 16000
 
+# PortAudio no es seguro entre hilos: abrir/cerrar streams a la vez (el TTS terminando una frase
+# mientras el atajo corta la voz y suena el bip) cerraba dos veces el mismo stream y el proceso
+# moría con "double free or corruption" dentro del plugin ALSA de PipeWire. Toda apertura y
+# cierre de streams pasa por este lock; nunca se toma dentro de un callback de audio.
+_pa_lock = threading.Lock()
+_playing: sd.OutputStream | None = None
+
 
 class Recorder:
     def __init__(self, device: int | None = None):
@@ -23,17 +30,24 @@ class Recorder:
 
     def start(self) -> None:
         self._chunks = []
-        self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="float32",
-            device=self.device, callback=self._callback,
-        )
-        self._stream.start()
+        with _pa_lock:
+            stream = sd.InputStream(
+                samplerate=SAMPLE_RATE, channels=1, dtype="float32",
+                device=self.device, callback=self._callback,
+            )
+            try:
+                stream.start()
+            except Exception:
+                stream.close()
+                raise
+            self._stream = stream
 
     def stop(self) -> np.ndarray:
-        if self._stream is not None:
-            self._stream.stop()
-            self._stream.close()
-            self._stream = None
+        with _pa_lock:  # también evita que dos hilos cierren el mismo stream
+            stream, self._stream = self._stream, None
+            if stream is not None:
+                stream.stop()
+                stream.close()
         self.level = 0.0
         with self._lock:
             if not self._chunks:
@@ -98,13 +112,63 @@ class Ducker:
             self._saved.clear()
 
 
+def _close(stream: sd.OutputStream) -> None:
+    """Cierra un stream de reproducción una sola vez, aunque lo intenten varios hilos."""
+    global _playing
+    with _pa_lock:
+        if _playing is stream:
+            _playing = None
+        if not stream.closed:
+            stream.stop()
+            stream.close()
+
+
+def _start(audio: np.ndarray, sample_rate: int) -> tuple[sd.OutputStream, threading.Event]:
+    """Empieza a reproducir `audio` cortando lo que sonara antes (como sd.play)."""
+    global _playing
+    data = np.asarray(audio)
+    if data.ndim == 1:
+        data = data[:, None]
+    done = threading.Event()
+    pos = 0
+
+    def callback(outdata, frames, time_info, status):
+        nonlocal pos
+        chunk = data[pos:pos + frames]
+        outdata[:len(chunk)] = chunk
+        outdata[len(chunk):] = 0
+        pos += frames
+        if pos >= len(data):
+            raise sd.CallbackStop
+
+    with _pa_lock:
+        if _playing is not None and not _playing.closed:
+            _playing.stop()
+            _playing.close()
+        stream = sd.OutputStream(samplerate=sample_rate, channels=data.shape[1], dtype=data.dtype,
+                                 callback=callback, finished_callback=done.set)
+        try:
+            stream.start()
+        except Exception:
+            stream.close()
+            raise
+        _playing = stream
+    return stream, done
+
+
 def play(audio: np.ndarray, sample_rate: int) -> None:
-    sd.play(audio, sample_rate)
-    sd.wait()
+    stream, done = _start(audio, sample_rate)
+    # Si otro hilo lo corta (stop_playback, un bip) el stream queda cerrado: dejar de esperar.
+    while not done.wait(0.1) and not stream.closed:
+        pass
+    _close(stream)
 
 
 def stop_playback() -> None:
-    sd.stop()
+    with _pa_lock:
+        stream = _playing
+    if stream is not None:
+        _close(stream)
 
 
 def beep(freq: float = 880, ms: int = 70, volume: float = 0.15) -> None:
@@ -113,6 +177,6 @@ def beep(freq: float = 880, ms: int = 70, volume: float = 0.15) -> None:
     tone = (np.sin(2 * np.pi * freq * t) * volume).astype(np.float32)
     fade = np.minimum(1, np.minimum(t, t[::-1]) * 200).astype(np.float32)
     try:
-        sd.play(tone * fade, SAMPLE_RATE)
+        _start(tone * fade, SAMPLE_RATE)
     except Exception:
         pass
