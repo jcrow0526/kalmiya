@@ -117,6 +117,14 @@ class UI:
     def hide(self):
         self.post(self._hide)
 
+    def hide_later(self, ms: int) -> None:
+        self.post(self._hide_later, ms)
+
+    def _hide_later(self, ms: int) -> None:
+        if self._hide_job:
+            self.root.after_cancel(self._hide_job)
+        self._hide_job = self.root.after(ms, self._hide)
+
     def _pump(self) -> None:
         try:
             while True:

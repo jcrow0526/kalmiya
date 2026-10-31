@@ -19,6 +19,51 @@ _pa_lock = threading.Lock()
 _playing: sd.OutputStream | None = None
 
 
+class _FileStream:
+    """Hace de micrófono con un audio ya grabado, en tiempo real (pruebas sin micrófono y
+    grabaciones de demostración). Al acabarse el audio sigue mandando silencio."""
+
+    BLOCK = 320  # 20 ms
+
+    def __init__(self, samples: np.ndarray, callback):
+        self.samples = samples.astype(np.float32)
+        self.callback = callback
+        self._stop = threading.Event()
+
+    def start(self) -> None:
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        import time
+        t0, i = time.monotonic(), 0
+        while not self._stop.is_set():
+            block = self.samples[i:i + self.BLOCK]
+            if len(block) < self.BLOCK:
+                block = np.concatenate([block, np.zeros(self.BLOCK - len(block), np.float32)])
+            self.callback(block[:, None], self.BLOCK, None, None)
+            i += self.BLOCK
+            time.sleep(max(0.0, t0 + i / SAMPLE_RATE - time.monotonic()))
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def close(self) -> None:
+        pass
+
+
+def load_wav(path: str) -> np.ndarray:
+    """WAV mono o estéreo a float32 de 16 kHz."""
+    import wave
+    with wave.open(path, "rb") as w:
+        rate, ch, width = w.getframerate(), w.getnchannels(), w.getsampwidth()
+        data = np.frombuffer(w.readframes(w.getnframes()), dtype={2: np.int16, 4: np.int32}[width])
+    x = data.reshape(-1, ch).mean(axis=1) / float(2 ** (8 * width - 1))
+    if rate != SAMPLE_RATE:
+        t = np.arange(0, len(x) / rate, 1 / SAMPLE_RATE)
+        x = np.interp(t, np.arange(len(x)) / rate, x)
+    return x.astype(np.float32)
+
+
 class Recorder:
     def __init__(self, device: int | None = None):
         self.device = device
@@ -26,6 +71,7 @@ class Recorder:
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
         self.level = 0.0  # nivel RMS para el indicador visual
+        self.feeds: list[np.ndarray] = []  # audios que sustituyen al micrófono, uno por grabación
 
     def _callback(self, indata, frames, time_info, status):
         with self._lock:
@@ -34,6 +80,11 @@ class Recorder:
 
     def start(self) -> None:
         self._chunks = []
+        if self.feeds:
+            stream = _FileStream(self.feeds.pop(0), self._callback)
+            stream.start()
+            self._stream = stream
+            return
         with _pa_lock:
             stream = sd.InputStream(
                 samplerate=SAMPLE_RATE, channels=1, dtype="float32",

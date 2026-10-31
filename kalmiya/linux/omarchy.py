@@ -58,7 +58,8 @@ def _ok(r: subprocess.CompletedProcess) -> bool:
 
 _NUM = {"uno": 1, "un": 1, "primer": 1, "primero": 1, "dos": 2, "segundo": 2, "tres": 3, "tercer": 3, "tercero": 3,
         "cuatro": 4, "cuarto": 4, "cinco": 5, "quinto": 5, "seis": 6, "sexto": 6, "siete": 7, "septimo": 7,
-        "ocho": 8, "octavo": 8, "nueve": 9, "noveno": 9, "diez": 10, "decimo": 10}
+        "ocho": 8, "octavo": 8, "nueve": 9, "noveno": 9, "diez": 10, "decimo": 10,
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
 
 
 def _numero(n) -> int | None:
@@ -503,6 +504,7 @@ _APPS = {
                         "Google Messages"),
     "ajustes": (["omarchy-menu", "summon"], "el menú de Omarchy"),
     "administrador de tareas": (["omarchy-launch-or-focus-tui", "btop"], "el monitor de actividad"),
+    "omawrite": (["omarchy-launch-or-focus", "omawrite"], "Omawrite"),  # el editor de textos de Omarchy
     # El agente de programación de Omarchy (Super+Shift+Ctrl+A), p. ej. Claude Code.
     "agente": (["omarchy-agent"], "tu agente"),
 }
@@ -512,6 +514,8 @@ _APP_ALIAS = {"consola": "terminal", "la terminal": "terminal", "una terminal": 
               "mensajes": "google messages", "configuracion": "ajustes", "configuración": "ajustes",
               "monitor del sistema": "administrador de tareas", "monitor de actividad": "administrador de tareas",
               "btop": "administrador de tareas",
+              "bloc de notas": "omawrite", "block de notas": "omawrite", "editor de texto": "omawrite",
+              "editor de textos": "omawrite", "notepad": "omawrite", "text editor": "omawrite",
               # Whisper oye "abre mi gente" por "abre mi agente".
               "gente": "agente", "agente de inteligencia artificial": "agente", "agente de ia": "agente",
               "agente de programacion": "agente", "agente de programación": "agente", "claude": "agente",
@@ -589,6 +593,13 @@ QUICK = [
     # exactamente una app instalada, se abre sin pasar por el modelo.
     (re.compile(r"^(abre|abreme|lanza|inicia|ejecuta)( la| el| mi| una| un)? (?P<a>.+?)( por favor)?$"),
      "abrir_aplicacion", lambda m: {"nombre": m["a"]} if _es_app(m["a"]) else None),
+    # En inglés (con Kalmiya en inglés).
+    (re.compile(r"^(go|switch|jump|take me) to (workspace|desktop) (number )?(?P<n>\w+)$"), "escritorio", _n),
+    (re.compile(r"^(move|send|put) (this|the) window to (workspace|desktop) (number )?(?P<n>\w+)$"), "escritorio",
+     lambda m: {"accion": "mover_ventana_a", "numero": _numero(m["n"])} if _numero(m["n"]) else None),
+    (re.compile(r"^(change|switch|set)( the)? theme to (?P<t>.+)$"), "apariencia", lambda m: _tema_rapido(m["t"])),
+    (re.compile(r"^(open|launch|start)( the| my| a)? (?P<a>.+?)( please)?$"), "abrir_aplicacion",
+     lambda m: {"nombre": m["a"]} if _es_app(m["a"]) else None),
     # "Pon el tema X" también es poner una canción: solo si X es exactamente un tema instalado.
     (re.compile(r"^(pon|cambia|cambiame)( el)? tema( de omarchy| del escritorio)?( a| al)? (?P<t>.+)$"), "apariencia",
      lambda m: _tema_rapido(m["t"])),

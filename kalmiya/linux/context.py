@@ -155,6 +155,9 @@ def browser_url(hwnd: str) -> str:
         if url and url != marca:
             break
     desktop.send("esc")
+    # Esc deja el foco en la barra: devolverlo a la página (F6 iría a la barra lateral de pestañas).
+    # Si no, la siguiente tecla ("f" de pantalla completa, espacio…) se escribía en la barra.
+    desktop.send("shift+f6")
     if previo is not None:
         desktop.clipboard_set(previo)
     url = url.strip() if url != marca else ""

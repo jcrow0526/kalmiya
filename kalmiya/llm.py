@@ -67,6 +67,12 @@ _QUICK = [
      "controlar_medios", {"accion": "anterior"}),
     (re.compile(r"^(pausa(la)?|pausar|para la musica|deten la musica|reanuda(la)?|continua|quita la pausa|play)$"),
      "controlar_medios", {"accion": "pausar_reanudar"}),
+    # En inglés (con Kalmiya en inglés): "pause the video" acababa en canción anterior.
+    (re.compile(r"^(pause|resume|unpause|stop|play)( the)?( video| music| song)?$"), "controlar_medios",
+     {"accion": "pausar_reanudar"}),
+    (re.compile(r"^(play )?(the )?next (song|track)$|^skip( this| the)?( song| track)?$"), "controlar_medios",
+     {"accion": "siguiente"}),
+    (re.compile(r"^(play )?(the )?previous (song|track)$"), "controlar_medios", {"accion": "anterior"}),
     (re.compile(r"^(pon |abre |reproduce )?(el )?(siguiente|proximo) video$"), "youtube_recomendado", {"posicion": 1}),
     (re.compile(r"^(pon|abre|reproduce|dale al?|dale|ve al?) (el |la )?(?P<n>\w+) (video |opcion )?"
                 r"(de (los |las )?)?(recomendad[oa]s?|sugerid[oa]s?|de (la )?derecha)"), "youtube_recomendado",
@@ -99,6 +105,42 @@ _MENSAJE = re.compile(
 # "Pregúntale a mamá si ya comió" -> mensaje "¿Ya comió?"
 _PREGUNTA = re.compile(r"^preg[uú]nta(?:le)? a (?P<c>.+?)(?: por whats(?:app)?| en whats(?:app)?)?"
                        r"(?:: |,? (?:si|que) )(?P<m>.+)$", re.I)
+
+
+_TRANSLATION_EXAMPLES = [
+    ("Te recordaré llamar al dentista y a mi papá en 20 minutos.",
+     "I'll remind you to call the dentist and my dad in 20 minutes."),
+    ("Usas 7,6 gigas de 15,6 gigas de memoria, el 49 por ciento.",
+     "You're using 7.6 of 15.6 gigabytes of memory, 49 percent."),
+    ("Mañana en Madrid estará despejado, con máxima de 24 grados.",
+     "Tomorrow in Madrid it'll be clear, with a high of 24 degrees."),
+    ("Encontré Mar Azul, de Natanael Cano. ¿Lo pongo?", "I found Mar Azul, by Natanael Cano. Should I play it?"),
+]
+
+# Respuestas fijas de las herramientas: se traducen sin el modelo (instantáneo y sin inventos).
+_FIXED_EN = [
+    (r"Listo", "Done."), (r"Hecho", "Done."), (r"Pantalla completa", "Full screen."),
+    (r"Cerré la pestaña", "Closed the tab."), (r"Regresé", "Went back."), (r"Avancé", "Went forward."),
+    (r"Recargué", "Reloaded."), (r"Siguiente", "Next."), (r"Anterior", "Previous."),
+    (r"Subí el volumen", "Volume up."), (r"Bajé el volumen", "Volume down."), (r"Silenciado", "Muted."),
+    (r"Volumen al (\d+) por ciento", r"Volume at \1 percent."), (r"Abrí (.+)", r"Opened \1."),
+    (r"Cerré (.+)", r"Closed \1."), (r"Minimicé (.+)", r"Minimized \1."), (r"Maximicé (.+)", r"Maximized \1."),
+    (r"Ahí tienes (.+)", r"Here's \1."), (r"Ahí lo tienes", "There you go."),
+    (r"Pongo el tema (.+)", r"Switching to the \1 theme."), (r"Tienes el tema (.+)", r"You're using the \1 theme."),
+    (r"Cambié el fondo", "Changed the wallpaper."), (r"Escritorio (\d+)", r"Workspace \1."),
+    (r"Moví la ventana al escritorio (\d+)", r"Moved the window to workspace \1."),
+    (r"Reproduciendo (.+)", r"Playing \1."), (r"PC bloqueada", "Computer locked."),
+    (r"Tomé una captura de pantalla", "Took a screenshot."),
+]
+
+
+def _fixed_english(text: str) -> str | None:
+    t = text.strip().rstrip(".").strip()
+    for rx, en in _FIXED_EN:
+        m = re.fullmatch(rx, t)
+        if m:
+            return m.expand(en).replace("..", ".")
+    return None
 
 
 def quick_route(text: str) -> tuple[str, dict] | None:
@@ -343,15 +385,30 @@ class Agent:
         return reply
 
     def to_english(self, text: str) -> str:
+        text = re.sub(r"[*_`#]+", "", text).strip()
+        fixed = _fixed_english(text)
+        if fixed is not None:
+            return fixed
         try:
+            # Con ejemplos: sin ellos LFM3 explicaba las frases cortas ("Listo" is Spanish for…) o se
+            # ponía a hablar del tema ("Kanagawa is a region in Japan…") en vez de traducir.
+            messages = [{"role": "system", "content": "You translate Spanish to English. Reply with the English "
+                                                      "translation only: no notes, no quotes, no markdown. Keep "
+                                                      "names, song and video titles unchanged."}]
+            for es, en in _TRANSLATION_EXAMPLES:
+                messages += [{"role": "user", "content": es}, {"role": "assistant", "content": en}]
+            messages.append({"role": "user", "content": text})
             r = self.client.post("/chat/completions", json={
-                "model": "lfm3", "temperature": 0.1, "max_tokens": 300, **NO_THINKING, "messages": [
-                    {"role": "system", "content": "Translate the text to natural, friendly English. Keep names, "
-                                                  "song and video titles unchanged. Output only the translation."},
-                    {"role": "user", "content": text}]})
+                "model": "lfm3", "temperature": 0.0, "max_tokens": 200, **NO_THINKING, "messages": messages})
             r.raise_for_status()
-            out = strip_think(r.json()["choices"][0]["message"].get("content") or "").strip().strip('"')
-            return out or text
+            out = strip_think(r.json()["choices"][0]["message"].get("content") or "")
+            out = re.sub(r"[*_`#]+", "", out).strip().strip('"').strip()
+            # "Te recordaré…" = "I'll remind you…" (el modelo traduce "I'll remember…").
+            out = re.sub(r"\bI'?ll remember (?:you )?to\b", "I'll remind you to", out)
+            # Una "traducción" mucho más larga que el original es una explicación, no una traducción.
+            if not out or len(out) > 2.2 * len(text) + 40:
+                return text
+            return out
         except Exception:
             log.exception("No pude traducir la respuesta")
             return text

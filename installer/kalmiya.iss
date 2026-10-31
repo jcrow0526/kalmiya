@@ -2,7 +2,7 @@
 ; El .exe es pequeno: extrae la app y abre la ventana del instalador, que descarga los modelos.
 [Setup]
 AppName=Kalmiya
-AppVersion=0.1.1
+AppVersion=0.2.0
 AppPublisher=Kalmiya
 ; Fuera de %LOCALAPPDATA%\Kalmiya: si esa carpeta ya existiera, install.ps1 no migraria una instalacion de Eco.
 DefaultDirName={localappdata}\Programs\KalmiyaSetup

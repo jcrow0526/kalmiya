@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$Version = "0.1.1"
+$Version = "0.2.0"
 $Root   = Join-Path $env:LOCALAPPDATA "Kalmiya"
 $Old    = Join-Path $env:LOCALAPPDATA "Eco"     # nombre anterior de la app
 $AppDir = Join-Path $Root "app"

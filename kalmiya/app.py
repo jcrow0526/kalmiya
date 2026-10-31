@@ -200,10 +200,35 @@ class KalmiyaApp:
             self._on_image_hotkey()
         elif cmd == "esc":
             self._on_escape()
+        elif cmd == "escuchar":  # kalmiya-ctl escuchar orden.wav [respuesta.wav…]: sin micrófono
+            threading.Thread(target=self._hear_files, args=(args,), daemon=True).start()
         elif cmd in ("settings", "calendar", "reminders", "welcome", "quit"):
             fn = {"settings": self._open_settings, "calendar": self.calendar_win.show,
                   "reminders": self.reminders_win.show, "welcome": self._welcome, "quit": self.ui._quit}[cmd]
             self.ui.post(fn)
+
+    def _hear_files(self, paths: list[str]) -> None:
+        """Atiende una orden grabada como si se dijera al micrófono (pruebas y videos de demostración).
+        Los audios siguientes responden a lo que Kalmiya pregunte después ("sí")."""
+        mode = paths.pop(0) if paths and paths[0] in ("agente", "dictado") else "agente"
+        try:
+            clips = [audio.load_wav(p) for p in paths]
+        except Exception as e:
+            log.warning("No pude leer %s: %s", paths, e)
+            return
+        if not clips:
+            return
+        first = len(clips[0]) / audio.SAMPLE_RATE
+        self.recorder.feeds = list(clips)  # el grabador los va consumiendo
+        try:
+            self._on_hotkey(mode, "")
+            if not self.recorder.recording:
+                self.recorder.feeds = []
+                return
+            time.sleep(first + 0.35)
+            self._finish()
+        except Exception:
+            log.exception("No pude atender %s", paths)
 
     def _register_hotkeys(self) -> None:
         if LINUX:
@@ -351,9 +376,11 @@ class KalmiyaApp:
                 log.exception("Error procesando")
                 self.ui.status(t("error"), str(e), hide_after=6000)
             finally:
+                self.recorder.feeds = []  # respuestas grabadas que no hicieron falta
                 if not self.recorder.recording:  # si la interrumpieron con el atajo, sigue bajado
                     self.ducker.restore()
                 self._set_busy(False)
+                log.info("Libre")
 
     @staticmethod
     def _set_busy(busy: bool) -> None:
@@ -397,9 +424,16 @@ class KalmiyaApp:
         return self._say(reply or "Hecho")
 
     def _say(self, reply: str, ask: bool = False) -> str:
-        self.ui.status("Kalmiya", reply, hide_after=None if ask else max(3000, 60 * len(reply)))
-        if self.cfg.responder_con_voz:
+        if ask or not self.cfg.responder_con_voz:
+            self.ui.status("Kalmiya", reply, hide_after=None if ask else max(3000, 60 * len(reply)))
+            if self.cfg.responder_con_voz:
+                self.speaker.say(reply)
+        else:
+            # La burbuja sigue mientras habla: con un tiempo según la longitud se cerraba a media frase.
+            self.ui.status("Kalmiya", reply, mode="speaking")
             self.speaker.say(reply)
+            if not (self._cancel or self.recorder.recording):  # no ocultar si ya la llamaron otra vez
+                self.ui.hide_later(1500)
         self._run_later()
         return reply
 
