@@ -82,3 +82,29 @@ Medido en RTX 4070 Laptop + Ryzen 7 7840HS (el primer resultado de la tabla):
 - Se probó y **no** se cambió (sin mejora medible): Whisper sin filtro de voz, sin prompt, con más margen o
   con `beam_size=1` (más error o igual); llama-server con `--parallel 1` (misma latencia, 0 fallos de caché
   en ambos casos).
+
+### En Linux con una GTX 1660 (0.2.0)
+
+Medido en GTX 1660 6 GB + Ryzen 5 3600 con Omarchy:
+
+| | Antes | Después |
+|---|---|---|
+| Tokens que LFM3 recalcula por orden | ~515 | **~160** (solo el contexto y la orden) |
+| LFM3 por orden | 1.25 s | **0.66 s** |
+| Whisper con `python -m kalmiya.bench` | 6.6 s (caía a la CPU) | **1.2 s** (CUDA) |
+| Total estimado | 2.36 s | **2.02 s** |
+
+- **Caché de LFM3:** LFM3 es un modelo híbrido y llama.cpp solo retoma su caché desde *puntos de control*.
+  Los creaba ~515 tokens antes del final de cada orden y, por la atención de ventana deslizante (256 tokens),
+  solo aceptaba los que quedaban 256 tokens antes de lo común. Ahora llama-server arranca con `--swa-full` y
+  Kalmiya manda al empezar una orden sin contexto que deja un punto de control justo al final del sistema y
+  las herramientas; cada orden lo vuelve a guardar al retomarlo (si se pierde, se rehace solo). Cuesta 74 MiB
+  más de VRAM.
+- **CUDA sin el lanzador:** en Linux las librerías de NVIDIA (cuBLAS, cuDNN) de pip se precargan desde
+  Python, así que Whisper usa la GPU aunque no se arranque con `kalmiya`.
+- **Medición más realista:** desde 0.2.0 cada orden del benchmark lleva otra pestaña en el contexto. Con el
+  mismo contexto en todas, llama.cpp reutilizaba también su caché y LFM3 salía en 0.34 s en vez de 0.66 s.
+  Los resultados anteriores a 0.2.0 están medidos así y pueden salir algo más rápidos.
+- Se probó y **no** se cambió: `-ub 128/256` (pierde la caché entera: ~20 s por orden), `-fa`, forzar cuBLAS o
+  MMQ (la GTX 1660 lee ~680 tokens/s en todos los casos) y Whisper con `beam_size=1` (1.15 s en vez de 1.25 s,
+  pero con más error).

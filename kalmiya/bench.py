@@ -225,6 +225,7 @@ class TimedAgent(llm.Agent):
         r.raise_for_status()
         data = r.json()
         self.timings.append(data.get("timings") or {})
+        self._check_cache(self.timings[-1])
         return data["choices"][0]["message"]
 
 
@@ -277,12 +278,14 @@ def bench_llm(cfg: Config, port: int, out_dir: Path, log, own: bool = False, ext
         agent = TimedAgent(base)
         agent.run("Hola", contexto=ctxt)  # calentar
         lat, ok, items, direct = [], 0, [], 0
-        for text, expected in LLM_SUITE * repeat:
+        for i, (text, expected) in enumerate(LLM_SUITE * repeat):
             called.clear()
             agent.reset()
             agent.timings.clear()
             t = time.perf_counter()
-            reply = agent.run(text, contexto=ctxt)
+            # Otra pestaña en cada orden, como en el uso real: si el contexto se repitiera, llama.cpp
+            # reutilizaría también su caché y la latencia saldría más baja de lo normal.
+            reply = agent.run(text, contexto=ctxt.replace("dQw4w9WgXcQ", f"video{i:02d}"))
             dt_ = time.perf_counter() - t
             first = called[0] if called else None
             good = (first or "-") in expected.split("|")

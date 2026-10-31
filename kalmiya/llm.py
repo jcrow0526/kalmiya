@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 import sys
 import time
 import uuid
@@ -226,6 +227,9 @@ class LlamaServer:
             "-c", str(cfg.llm_contexto), *layers,
             "--jinja", "--temp", "0.1", "--top-k", "50", "--repeat-penalty", "1.1",
             "--chat-template-kwargs", '{"enable_thinking": false}',
+            # LFM3 tiene capas de ventana deslizante (256 tokens): sin la caché completa, llama.cpp solo
+            # retoma un punto de control 256 tokens antes de lo común y cada orden recalculaba ~515 tokens.
+            "--swa-full",
         ]
 
     def start(self, timeout: float = 120) -> None:
@@ -346,6 +350,23 @@ class Agent:
         self.turns: list[list[dict]] = []  # turnos recientes completos (sin system)
         self.pending = None  # acción que espera confirmación (ver tools.ask)
         self.asked = False  # la última respuesta fue una pregunta
+        self._anchor_n = 0
+        self.anchor()
+
+    def anchor(self) -> None:
+        """Deja en llama-server un punto de control justo al final de la parte fija (sistema +
+        herramientas). LFM3 es híbrido: su caché solo se retoma desde puntos de control, y llama.cpp
+        los crea al empezar el último mensaje, ~515 tokens antes del final y donde retomó. Una orden
+        sin contexto crea el primero; después cada orden lo vuelve a guardar al retomarlo. Así se
+        recalculan solo el contexto y la orden (~160 tokens) en vez de ~515 (0.5 s en una GTX 1660)."""
+        try:
+            r = self.client.post("/chat/completions", json={
+                **self._payload([self._system(), {"role": "user", "content": "hola"}]), "max_tokens": 1})
+            r.raise_for_status()
+            tm = r.json().get("timings") or {}
+            self._anchor_n = tm.get("prompt_n", 0) + tm.get("cache_n", 0)
+        except Exception as e:
+            log.warning("No pude preparar la caché de LFM3: %s", e)
 
     def _system(self) -> dict:
         # Fijo: llama-server reutiliza de su caché el sistema + los ~3400 tokens de herramientas.
@@ -375,7 +396,15 @@ class Agent:
     def _chat(self, messages: list[dict]) -> dict:
         r = self.client.post("/chat/completions", json=self._payload(messages))
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]
+        data = r.json()
+        self._check_cache(data.get("timings") or {})
+        return data["choices"][0]["message"]
+
+    def _check_cache(self, timings: dict) -> None:
+        """Si el punto de control de la parte fija se perdió (llama.cpp guarda 32 por ranura), se
+        vuelve a crear en segundo plano para que la siguiente orden no recalcule de más."""
+        if self._anchor_n and timings.get("cache_n", self._anchor_n) < self._anchor_n - 16:
+            threading.Thread(target=self.anchor, daemon=True).start()
 
     def run(self, user_text: str, on_tool=None, contexto: str = "") -> str:
         reply = self._run(user_text, on_tool, contexto)

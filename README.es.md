@@ -190,6 +190,7 @@ Añadir una herramienta = una función con `@tool(...)` en [kalmiya/tools.py](ka
 
 RTX 4070 Laptop 8 GB y Ryzen 7 7840HS: de soltar el atajo a oír la respuesta, **~0.56 s** (Whisper 0.23 s,
 LFM3 0.23 s y primer audio 0.09 s). LFM3 elige la herramienta correcta en 24 de 24 órdenes de prueba.
+En Linux con una GTX 1660 6 GB y Ryzen 5 3600 (Omarchy): **~2.0 s** (Whisper 1.26 s y LFM3 0.66 s).
 
 **Mide tu equipo:** menú Inicio → *Kalmiya Benchmark* (o `python -m kalmiya.bench`) y comparte el resultado
 → [bench/](bench/README.md) · [tabla de la comunidad](bench/RESULTS.md).

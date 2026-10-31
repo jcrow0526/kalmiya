@@ -183,6 +183,7 @@ Adding a tool = one function with `@tool(...)` in [kalmiya/tools.py](kalmiya/too
 
 RTX 4070 Laptop 8 GB and Ryzen 7 7840HS: from releasing the shortcut to hearing the answer, **~0.56 s** (Whisper 0.23 s,
 LFM3 0.23 s and first audio 0.09 s). LFM3 picks the right tool in 24 out of 24 test commands.
+On Linux with a GTX 1660 6 GB and Ryzen 5 3600 (Omarchy): **~2.0 s** (Whisper 1.26 s, LFM3 0.66 s).
 
 **Benchmark your machine:** Start menu → *Kalmiya Benchmark* (or `python -m kalmiya.bench`) and share the result
 → [bench/](bench/README.md) · [community results](bench/RESULTS.md).

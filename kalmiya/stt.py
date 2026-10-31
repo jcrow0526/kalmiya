@@ -16,7 +16,22 @@ def _add_cuda_dlls() -> None:
     import sys
 
     if sys.platform != "win32":
-        return  # en Linux el lanzador (kalmiya.sh) ya pone las libs de nvidia-* en LD_LIBRARY_PATH
+        # El lanzador ya pone las libs de nvidia-* en LD_LIBRARY_PATH, pero `python -m kalmiya.bench`
+        # no pasa por él y Whisper caía a la CPU (6.6 s por frase). LD_LIBRARY_PATH no se puede cambiar
+        # con el proceso en marcha: se precargan las .so para que CTranslate2 las encuentre por nombre.
+        import ctypes
+        pending = sorted(Path(sys.prefix).glob("lib/python3*/site-packages/nvidia/*/lib/lib*.so*"))
+        while pending:  # en el orden que permitan sus dependencias entre sí
+            failed = []
+            for lib in pending:
+                try:
+                    ctypes.CDLL(str(lib), mode=ctypes.RTLD_GLOBAL)
+                except OSError:
+                    failed.append(lib)
+            if len(failed) == len(pending):
+                break
+            pending = failed
+        return
     root = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
     for bin_dir in root.glob("*/bin"):
         os.add_dll_directory(str(bin_dir))
