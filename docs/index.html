@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kalmiya — Tu asistente de voz, 100 % local</title>
-<meta name="description" content="Kalmiya es un asistente de voz para Windows que corre completamente en tu PC: escucha con Whisper, piensa con LFM3 y te responde con voz natural.">
+<meta name="description" content="Kalmiya es una asistente de voz para Windows y Linux (Omarchy) que corre completamente en tu PC: escucha con Whisper, piensa con LFM3 y te responde con voz natural.">
 <meta property="og:title" content="Kalmiya — Tu asistente de voz, 100 % local">
 <meta property="og:description" content="Hola, soy Kalmiya. Corro de manera local y estoy para ayudarte.">
 <meta property="og:image" content="assets/poster_es.jpg">
@@ -162,7 +162,40 @@
   .req span::before { content: "✓ "; color: var(--accent); }
   .note { color: var(--muted); font-size: 13px; margin-top: 22px; max-width: 620px; margin-inline: auto; }
 
+  /* comerciales */
+  .seg { display: inline-flex; background: rgba(255,255,255,.08); border-radius: 999px; padding: 4px; margin-top: 34px; gap: 2px; }
+  .seg button { all: unset; cursor: pointer; padding: 9px 20px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--soft); }
+  .seg button.on { background: var(--fg); color: #000; }
+  .film-cap { color: var(--muted); font-size: 14px; margin-top: 16px; }
+  .film-cap a { color: var(--accent); }
+
+  /* Omarchy */
+  .omarchy { background: radial-gradient(900px 420px at 50% 0%, rgba(43,217,255,.10), transparent 65%); }
+  .os-badge { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; color: var(--soft);
+              border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; margin-bottom: 18px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; text-align: left; }
+  .grid3 .tile { min-height: 230px; }
+  @media (max-width: 900px) { .grid3 { grid-template-columns: 1fr; } }
+
+  /* descargas */
+  /* minmax(0, 1fr): la línea larga del comando no ensancha su columna (se desplaza dentro). */
+  .dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 48px; text-align: left; }
+  .dl .card { margin-top: 0; text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .dl .card.mine { border-color: rgba(124,255,43,.45); }
+  .dl .os { font-size: 28px; font-weight: 700; letter-spacing: -.03em; margin-bottom: 4px; }
+  .dl .ver { color: var(--muted); font-size: 14px; margin-bottom: 22px; }
+  .dl .req { margin-top: 22px; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; }
+  .cmd { position: relative; width: 100%; margin-top: 18px; text-align: left; background: #050506; border: 1px solid var(--line);
+         border-radius: 14px; padding: 14px 16px; font: 13px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; color: #d6d6dc;
+         overflow-x: auto; white-space: pre; }
+  .cmd button { all: unset; cursor: pointer; position: absolute; top: 8px; right: 8px; font: 600 12px Inter, sans-serif;
+                background: rgba(255,255,255,.1); color: var(--fg); padding: 5px 10px; border-radius: 8px; }
+  .all { margin-top: 26px; font-size: 15px; }
+  .all a { color: var(--accent); }
+  @media (max-width: 900px) { .dl { grid-template-columns: minmax(0, 1fr); } }
+
   footer { border-top: 1px solid var(--line); padding: 34px 0 60px; color: var(--muted); font-size: 13px; }
+  footer .credit { width: 100%; font-size: 12px; color: #5f5f66; }
   footer .wrap { display: flex; gap: 20px; justify-content: space-between; flex-wrap: wrap; }
   footer a:hover { color: var(--fg); }
 
@@ -178,7 +211,9 @@
   <div class="wrap">
     <a class="brand" href="#"><img src="assets/icon.png" alt="">Kalmiya</a>
     <div class="links">
+      <a href="#videos" data-en="Videos">Videos</a>
       <a href="#funciones" data-en="Features">Funciones</a>
+      <a href="#omarchy">Linux</a>
       <a href="#privacidad" data-en="Privacy">Privacidad</a>
       <a href="#descargar" data-en="Download">Descargar</a>
       <a href="https://github.com/jcrow0526/kalmiya">GitHub</a>
@@ -193,7 +228,7 @@
     <video src="assets/orb.mp4" poster="assets/orb.jpg" autoplay muted loop playsinline aria-hidden="true"></video>
   </div>
   <div class="wrap">
-    <p class="eyebrow reveal" data-en="Kalmiya for Windows">Kalmiya para Windows</p>
+    <p class="eyebrow reveal" data-en="Kalmiya for Windows and Linux">Kalmiya para Windows y Linux</p>
     <h1 class="reveal"><span class="grad" data-en="Hi, I'm Kalmiya.">Hola, soy Kalmiya.</span></h1>
     <p class="lede reveal" data-en="I run locally and I'm here to help. A voice assistant that listens, thinks and acts on your PC — without sending your voice anywhere.">Corro de manera local y estoy para ayudarte. Una asistente de voz que escucha, piensa y actúa en tu PC, sin enviar tu voz a ningún lado.</p>
     <div class="ctas reveal">
@@ -204,14 +239,19 @@
   </div>
 </header>
 
-<section class="center" style="padding-top:60px">
+<section id="videos" class="center" style="padding-top:60px">
   <div class="wrap">
-    <h2 class="reveal" data-en="Meet Kalmiya.">Conoce a Kalmiya.</h2>
+    <h2 class="reveal" data-en="See her in action.">Mírala en acción.</h2>
+    <div class="seg reveal" role="tablist">
+      <button data-film="kalmiya" class="on" data-en="Introduction">Presentación</button>
+      <button data-film="omarchy">Kalmiya × Omarchy</button>
+    </div>
     <div class="film reveal">
       <video id="film" controls playsinline preload="metadata" poster="assets/poster_es.jpg">
         <source src="assets/kalmiya_es.mp4" type="video/mp4">
       </video>
     </div>
+    <p class="film-cap reveal" id="film-cap"></p>
   </div>
 </section>
 
@@ -283,6 +323,28 @@
   </div>
 </section>
 
+<section id="omarchy" class="omarchy center">
+  <div class="wrap">
+    <span class="os-badge reveal">🐧 Linux · Wayland · Hyprland</span>
+    <h2 class="reveal" data-en="And on Omarchy, she runs the whole desktop.">Y en Omarchy, maneja todo el escritorio.</h2>
+    <p class="sub reveal" data-en="Everything she does on Windows, plus workspaces, themes, quick settings, screenshots and more — tested on Omarchy (Arch + Hyprland).">Todo lo que hace en Windows, más escritorios, temas, ajustes rápidos, capturas y más. Probada en <a href="https://omarchy.org" style="color:var(--accent)">Omarchy</a> (Arch + Hyprland).</p>
+    <div class="grid3">
+      <div class="tile reveal"><span class="tag" data-en="Workspaces & windows">Escritorios y ventanas</span><h3 data-en="Move without the mouse.">Muévete sin ratón.</h3>
+        <div class="say"><span class="bubble" data-en="“Go to workspace 3”">«Ve al escritorio 3»</span><span class="bubble" data-en="“Send this window to 2”">«Manda esta ventana al 2»</span></div></div>
+      <div class="tile reveal"><div class="glow" style="background:#2bd9ff"></div><span class="tag" data-en="Themes & wallpapers">Temas y fondos</span><h3 data-en="Change the whole look.">Cambia todo el look.</h3>
+        <div class="say"><span class="bubble" data-en="“Change the theme to Kanagawa”">«Cambia el tema a Kanagawa»</span><span class="bubble me" data-en="Switching to Kanagawa">Cambiando a Kanagawa</span></div></div>
+      <div class="tile reveal"><span class="tag" data-en="Quick settings">Ajustes rápidos</span><h3 data-en="Night light, do not disturb, brightness.">Luz nocturna, no molestar, brillo.</h3>
+        <div class="say"><span class="bubble" data-en="“Brightness to 40 percent”">«Brillo al 40 por ciento»</span></div></div>
+      <div class="tile reveal"><span class="tag" data-en="Screen">Pantalla</span><h3 data-en="Screenshots, OCR, colors and recording.">Capturas, OCR, colores y grabación.</h3>
+        <div class="say"><span class="bubble" data-en="“Copy the text on the screen”">«Copia el texto de la pantalla»</span></div></div>
+      <div class="tile reveal"><span class="tag" data-en="Your system">Tu equipo</span><h3 data-en="Memory, disk, IP and updates.">Memoria, disco, IP y actualizaciones.</h3>
+        <div class="say"><span class="bubble" data-en="“How much memory am I using?”">«¿Cuánta memoria estoy usando?»</span></div></div>
+      <div class="tile reveal"><div class="glow" style="background:#ffb02b"></div><span class="tag" data-en="Always asks first">Siempre pregunta antes</span><h3 data-en="Updates and power, only with your OK.">Actualizar y apagar, solo con tu sí.</h3>
+        <div class="say"><span class="bubble" data-en="“Update the system”">«Actualiza el sistema»</span><span class="bubble me" data-en="Shall I update now?">¿Actualizo ahora?</span></div></div>
+    </div>
+  </div>
+</section>
+
 <section id="privacidad" class="privacy center">
   <div class="wrap">
     <p class="eyebrow reveal" data-en="Privacy">Privacidad</p>
@@ -301,28 +363,46 @@
   <div class="wrap">
     <h2 class="reveal" data-en="Fast. Really fast.">Rápida. De verdad.</h2>
     <div class="stats">
-      <div class="stat reveal"><div class="n">0.5<span> s</span></div><p data-en="from releasing the shortcut to action (NVIDIA GPU)">de soltar el atajo a la acción (GPU NVIDIA)</p></div>
-      <div class="stat reveal"><div class="n">0<span> ms</span></div><p data-en="for “next song”, “pause” and other quick commands">para «siguiente canción», «pausa» y otras órdenes rápidas</p></div>
-      <div class="stat reveal"><div class="n">2</div><p data-en="languages: Spanish and English">idiomas: español e inglés</p></div>
+      <div class="stat reveal"><div class="n">0.56<span> s</span></div><p data-en="from releasing the shortcut to hearing the answer (RTX 4070 Laptop)">de soltar el atajo a oír la respuesta (RTX 4070 Laptop)</p></div>
+      <div class="stat reveal"><div class="n">24<span>/24</span></div><p data-en="test commands where LFM3 picks the right action">órdenes de prueba en las que LFM3 elige la acción correcta</p></div>
+      <div class="stat reveal"><div class="n">2 · 2</div><p data-en="systems (Windows, Linux) and languages (Spanish, English)">sistemas (Windows, Linux) e idiomas (español, inglés)</p></div>
     </div>
+    <p class="film-cap reveal"><span data-en="Measure your own PC and share it:">Mide tu equipo y compártelo:</span> <a href="https://github.com/jcrow0526/kalmiya/blob/main/bench/README.md">Kalmiya Benchmark</a> · <a href="https://github.com/jcrow0526/kalmiya/blob/main/bench/RESULTS.md" data-en="community results">resultados de la comunidad</a></p>
   </div>
 </section>
 
 <section id="descargar" class="download">
   <div class="wrap">
     <h2 class="reveal" data-en="Get Kalmiya.">Consigue Kalmiya.</h2>
-    <p class="sub reveal" data-en="One click. The installer downloads the models and sets everything up.">Un clic. El instalador descarga los modelos y deja todo listo.</p>
-    <div class="card reveal">
-      <img src="assets/icon.png" alt="">
-      <a class="btn primary" href="https://github.com/jcrow0526/kalmiya/releases/latest/download/KalmiyaSetup.exe" data-en="Download KalmiyaSetup.exe">Descargar KalmiyaSetup.exe</a>
-      <div class="req">
-        <span data-en="Windows 10 or 11, 64‑bit">Windows 10 u 11 de 64 bits</span>
-        <span data-en="8 GB RAM (16 GB recommended)">8 GB de RAM (16 GB recomendado)</span>
-        <span data-en="~8 GB of disk">~8 GB de disco</span>
-        <span data-en="NVIDIA GPU recommended">GPU NVIDIA recomendada</span>
+    <p class="sub reveal" data-en="Free and open source. The installer downloads the models (~5 GB) and sets everything up.">Gratis y de código abierto. El instalador descarga los modelos (~5 GB) y deja todo listo.</p>
+    <div class="dl">
+      <div class="card reveal" id="dl-windows">
+        <img src="assets/icon.png" alt="">
+        <div class="os">Windows</div>
+        <div class="ver">KalmiyaSetup.exe · v0.1.1 · 4 MB</div>
+        <a class="btn primary" href="https://github.com/jcrow0526/kalmiya/releases/download/v0.1.1/KalmiyaSetup.exe" data-en="Download for Windows">Descargar para Windows</a>
+        <div class="req">
+          <span data-en="Windows 10 or 11, 64‑bit">Windows 10 u 11 de 64 bits</span>
+          <span data-en="8 GB RAM (16 GB recommended), ~8 GB of disk">8 GB de RAM (16 GB recomendado), ~8 GB de disco</span>
+          <span data-en="NVIDIA GPU recommended (works on CPU, slower)">GPU NVIDIA recomendada (funciona en CPU, más lento)</span>
+        </div>
+        <p class="note" data-en="Windows may show “Windows protected your PC” because the installer isn't signed: click More info → Run anyway.">Windows puede mostrar «Windows protegió tu PC» porque el instalador no está firmado: pulsa Más información → Ejecutar de todos modos.</p>
       </div>
-      <p class="note" data-en="Works without a GPU too, just slower. Windows may show “Windows protected your PC” because the installer isn't signed: click More info → Run anyway.">También funciona sin GPU, solo que más lento. Windows puede mostrar «Windows protegió tu PC» porque el instalador no está firmado: pulsa Más información → Ejecutar de todos modos.</p>
+      <div class="card reveal" id="dl-linux">
+        <img src="assets/icon.png" alt="">
+        <div class="os">Linux · Omarchy</div>
+        <div class="ver">Kalmiya-linux.tar.gz · v0.2.0</div>
+        <a class="btn primary" href="https://github.com/jcrow0526/kalmiya/releases/latest/download/Kalmiya-linux.tar.gz" data-en="Download for Linux">Descargar para Linux</a>
+        <div class="cmd" id="cmd">curl -L https://github.com/jcrow0526/kalmiya/releases/latest/download/Kalmiya-linux.tar.gz | tar xz
+cd kalmiya &amp;&amp; ./Instalar.sh<button type="button" data-en="Copy">Copiar</button></div>
+        <div class="req">
+          <span data-en="Arch / Omarchy with Hyprland (Wayland)">Arch / Omarchy con Hyprland (Wayland)</span>
+          <span data-en="NVIDIA (CUDA), Vulkan or CPU">NVIDIA (CUDA), Vulkan o CPU</span>
+          <span data-en="Installs what's missing with pacman">Instala lo que falte con pacman</span>
+        </div>
+      </div>
     </div>
+    <p class="all reveal"><a href="https://github.com/jcrow0526/kalmiya/releases" data-en="All versions and full-size videos ›">Todas las versiones y los videos en alta calidad ›</a></p>
   </div>
 </section>
 
@@ -330,26 +410,66 @@
   <div class="wrap">
     <span data-en="Kalmiya · Open source under the MIT license.">Kalmiya · Código abierto con licencia MIT.</span>
     <span><a href="https://github.com/jcrow0526/kalmiya">GitHub</a> · <a href="https://github.com/jcrow0526/kalmiya/issues" data-en="Report a problem">Reportar un problema</a></span>
+    <span class="credit" data-en="The Omarchy commercials show Sintel and Big Buck Bunny © Blender Foundation · CC BY 3.0. The user's voice in the commercials is synthetic (Piper).">Los comerciales de Omarchy muestran Sintel y Big Buck Bunny © Blender Foundation · CC BY 3.0. La voz del usuario en los comerciales es sintética (Piper).</span>
   </div>
 </footer>
 
 <script>
   // Idioma: español por defecto; inglés si el navegador lo prefiere. Cada texto guarda su versión en data-en.
+  // innerHTML para conservar los enlaces de los textos en español al volver a cambiar de idioma.
   const nodes = [...document.querySelectorAll("[data-en]")];
-  nodes.forEach(n => n.dataset.es = n.textContent);
-  const film = document.getElementById("film");
-  function setLang(l) {
-    document.documentElement.lang = l;
-    nodes.forEach(n => n.textContent = n.dataset[l]);
-    document.querySelectorAll(".lang button").forEach(b => b.classList.toggle("on", b.dataset.l === l));
-    const src = `assets/kalmiya_${l}.mp4`;
+  nodes.forEach(n => n.dataset.es = n.innerHTML);
+  const film = document.getElementById("film"), cap = document.getElementById("film-cap");
+  const REL = "https://github.com/jcrow0526/kalmiya/releases/download";
+  const FILMS = {
+    kalmiya: { src: l => `assets/kalmiya_${l}.mp4`, poster: l => `assets/poster_${l}.jpg`,
+               full: l => `${REL}/v0.1.1/Kalmiya_${l.toUpperCase()}.mp4`,
+               cap: { es: "Presentación · 0:39 · narrada por Kalmiya", en: "Introduction · 0:44 · narrated by Kalmiya" } },
+    omarchy: { src: l => `assets/omarchy_${l}.mp4`, poster: l => `assets/omarchy_poster_${l}.jpg`,
+               full: l => `${REL}/v0.2.0/Kalmiya_Omarchy_${l.toUpperCase()}.mp4`,
+               cap: { es: "Grabación real de pantalla en Omarchy (Linux) · 1:22", en: "Real screen recording on Omarchy (Linux) · 1:22" } },
+  };
+  let lang = "es", which = "kalmiya";
+  function showFilm() {
+    const f = FILMS[which], src = f.src(lang);
     if (!film.currentSrc.endsWith(src)) {
-      film.poster = `assets/poster_${l}.jpg`;
+      film.poster = f.poster(lang);
       film.querySelector("source").src = src;
       film.load();
     }
+    cap.innerHTML = `${f.cap[lang]} · <a href="${f.full(lang)}">${lang === "en" ? "Full HD" : "Descargar en alta calidad"}</a>`;
+    document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.film === which));
+  }
+  document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+    which = b.dataset.film; showFilm(); film.play().catch(() => {});
+  }));
+  function setLang(l) {
+    lang = l;
+    document.documentElement.lang = l;
+    nodes.forEach(n => n.innerHTML = n.dataset[l]);
+    document.querySelectorAll(".lang button").forEach(b => b.classList.toggle("on", b.dataset.l === l));
+    showFilm();
     document.title = l === "en" ? "Kalmiya — Your voice assistant, 100% local" : "Kalmiya — Tu asistente de voz, 100 % local";
     try { localStorage.setItem("kalmiya-lang", l); } catch (e) {}
+  }
+
+  // Copiar el comando de instalación de Linux.
+  const cmdBtn = document.querySelector("#cmd button");
+  cmdBtn.addEventListener("click", () => {
+    const text = document.getElementById("cmd").firstChild.textContent.trim();
+    navigator.clipboard.writeText(text).then(() => {
+      const old = cmdBtn.textContent; cmdBtn.textContent = lang === "en" ? "Copied" : "Copiado";
+      setTimeout(() => cmdBtn.textContent = old, 1500);
+    }).catch(() => {});
+  });
+
+  // La descarga de tu sistema va primero y resaltada.
+  if (/Linux|X11/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
+    const lin = document.getElementById("dl-linux");
+    lin.parentNode.prepend(lin);
+    lin.classList.add("mine");
+  } else if (/Windows/.test(navigator.userAgent)) {
+    document.getElementById("dl-windows").classList.add("mine");
   }
   document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => setLang(b.dataset.l)));
   let saved = null;

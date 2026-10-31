@@ -1,6 +1,6 @@
 """Recursos de la landing (docs/assets): bucle del orbe, videos web, portadas e icono.
 
-    %LOCALAPPDATA%\\Kalmiya\\venv\\Scripts\\python.exe docs\\make_assets.py
+    %LOCALAPPDATA%\\Kalmiya\\venv\\Scripts\\python.exe docs\\make_assets.py [carpeta-con-comerciales-omarchy]
 """
 import subprocess
 import sys
@@ -50,10 +50,27 @@ def web_video(lang: str) -> None:
                     "-vf", "scale=1280:-2", str(OUT / f"poster_{lang.lower()}.jpg")], check=True)
 
 
+def omarchy_video(src_dir: Path, lang: str) -> None:
+    """Comerciales de Omarchy (Kalmiya_Omarchy_ES/EN.mp4 del release v0.2.0) a 720p para la web,
+    con portada en el momento de "Cambia el tema a Kanagawa"."""
+    src = src_dir / f"Kalmiya_Omarchy_{lang}.mp4"
+    out = OUT / f"omarchy_{lang.lower()}.mp4"
+    subprocess.run([FF, "-y", "-loglevel", "error", "-i", str(src), "-vf", "scale=1280:-2", "-c:v", "libx264",
+                    "-preset", "slow", "-crf", "27", "-x264-params", "aq-mode=3", "-c:a", "aac", "-b:a", "112k",
+                    "-movflags", "+faststart", str(out)], check=True)
+    subprocess.run([FF, "-y", "-loglevel", "error", "-ss", "13", "-i", str(out), "-frames:v", "1", "-q:v", "3",
+                    str(OUT / f"omarchy_poster_{lang.lower()}.jpg")], check=True)
+
+
 if __name__ == "__main__":
+    # Opcional: carpeta con los comerciales de Omarchy descargados del release
+    # (gh release download v0.2.0 -p "Kalmiya_Omarchy_*.mp4" -D <carpeta>).
+    omarchy_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     orb_loop()
     for lang in ("ES", "EN"):
         web_video(lang)
+        if omarchy_dir:
+            omarchy_video(omarchy_dir, lang)
     make_icon(size=256).save(OUT / "icon.png")
     make_icon(size=64).save(OUT / "favicon.png")
     for p in sorted(OUT.iterdir()):
